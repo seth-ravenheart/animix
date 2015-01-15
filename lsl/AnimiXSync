@@ -1,0 +1,105 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 300;
+string gCOMMAND = "";
+string  gARG1 = "";
+string  gARG2 = "";
+
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+
+integer SCRIPT_LOAD = 200;
+string LM_DANCES_NEXT  = "d_next";
+
+string LM_TIMER_START = "t_start";
+string LM_TIMER_STOP = "t_stop";
+string LM_TIMER_SET = "t_set";
+
+integer gCHAT_INFO = 0;
+integer gDANCE_TIMER = 5;  // AnimiXConf stores a copy and initialzes this variable on LM_SYNC. The veriable is a string however.
+
+init_sync( string argv ) {
+    gCHAT_INFO = (integer)argv;
+    llSetTimerEvent(0);
+}
+show_status() {
+    print_chat(1,"Dance Timer " + (string)gDANCE_TIMER + " minutes");
+    print_chat(1,"Free Memory " + (string)llGetFreeMemory());
+}
+parse_argv( string argv ) {    
+    list argv = llParseString2List( argv, ["|"], [] );
+    
+    gCOMMAND = llList2String(argv,0);    
+    gARG1 = "";
+    gARG2 = "";    
+    
+    if( llGetListLength( argv ) == 2 ) {
+        gARG1 = llList2String( argv, 1 );
+    }
+    else if( llGetListLength( argv ) == 3 ) {
+        gARG1 = llList2String( argv, 1 );
+        gARG2 = llList2String( argv, 2 );
+    }
+    
+    print_chat(4,"argv[" + llList2CSV( argv ) + "]" );  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+
+print_chat(integer level, string msg) {
+    if(level <= gCHAT_INFO) {
+        if(gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        }
+        else { 
+            llOwnerSay("[Sync] " + msg);            
+        }
+    }
+}
+
+default {
+    link_message(integer sender_num, integer script_num, string argv, key agent_key) {    
+        if( script_num == SCRIPT_NUM ) {
+            parse_argv( argv );
+;
+            if(gCOMMAND == LM_TIMER_SET) {
+                print_chat(1,"Setting sync timer to “" + (string)gARG1 + " minutes”");
+                gDANCE_TIMER = (integer)gARG1;
+                llSetTimerEvent(gDANCE_TIMER * 60);
+            }
+            else if(gCOMMAND == LM_TIMER_STOP) {
+                print_chat(3,"Stopping sync timer");
+                llSetTimerEvent(0);
+            }
+            else if(gCOMMAND == LM_TIMER_START) {
+                print_chat(3,"Starting sync timer");
+                llSetTimerEvent(gDANCE_TIMER * 60);
+            }
+        }
+        else if(script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if( gCHAT_INFO == 0 ) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if( tempCHAT_INFO == 0 ) {
+                gCHAT_INFO = 0;
+            }
+        } 
+        else if( script_num == LM_INIT ) {
+            init_sync(argv);
+        }
+        else if(script_num == LM_SET_CHAT_INFO ) {
+            gCHAT_INFO = (integer)argv;
+        }
+    }
+    
+    timer() {
+        llMessageLinked(LINK_THIS, SCRIPT_LOAD,LM_DANCES_NEXT, NULL_KEY); 
+    }
+}
+

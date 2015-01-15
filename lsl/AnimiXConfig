@@ -1,0 +1,811 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 400;
+string gCOMMAND = "";
+string  gARG1 = "";
+string  gARG2 = "";
+
+integer SCRIPT_COMMAND = 69;
+string LM_SET_CHANNELS = "c_set";
+
+integer SCRIPT_MAIN = 100;
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+integer LM_AGENT_SYNC = 99;
+
+string LM_AGENT_NEW = "a_new";
+string LM_AGENT_NEW_SENSOR = "a_sensor";
+string LM_SET_DANCE_MODE = "set_dance_mode";
+string LM_AGENTS_DIA = "a_users_dia";
+
+integer SCRIPT_LOAD = 200;
+string LM_DANCES_MENU = "d_menu";
+string LM_DANCES_LOAD_ANIMIX = "d_load_animix"; 
+string LM_DANCES_LOAD_ALL = "d_load_all";
+string LM_DANCES_NEXT  = "d_next";
+string LM_DANCES_RANDOMIZE = "d_randomize";
+
+integer SCRIPT_SYNC = 300;
+string LM_TIMER_START = "t_start";
+string LM_TIMER_STOP = "t_stop";
+string LM_TIMER_SET = "t_set";
+
+integer SCRIPT_CONFIG = 400;
+string LM_CONFIG = "config";
+string LM_DANCE_MODE = "c_mode";
+string LM_ANIMIX = "c_animix";
+string LM_TITLER = "c_titler";
+string LM_USERS = "c_users";
+string LM_INVITE = "c_invite";
+
+integer SCRIPT_TITLER = 500;
+string gTITLER_TIMER = "10";
+string LM_NAUGHTY_ON = "sn_on";
+string LM_NAUGHTY_OFF = "sn_off";
+string LM_STATS_ON = "st_on";
+string LM_STATS_OFF = "st_off";
+
+string LM_NAUGHTY_TIMER_SET = "sn_timer_set";
+string LM_TITLER_STATS = "c_stats";
+string LM_TITLER_SET  = "sn_titler_set";
+string LM_TITLER_TEXT = "sn_titler_text";
+string LM_TITLER_COLOR = "sn_titler_color";
+string LM_TITLER_BORDER = "sn_titler_border";
+
+string OWNER = NULL_KEY;
+integer gDIA_TIMER = 60;
+
+integer gCHAT_INFO = 0;
+
+string gTITLER_MODE = "Off";
+string gTITLER_CUSTOM_TEXT = "";
+string gTITLER_BORDER = "0";
+integer gTITLER_LISTENING = 0;
+integer gTITLER_COLORS_INDEX = 0;
+
+list gTITLER_COLORS = [];
+integer gTITLER_COLORS_NUM = 0;
+
+string BTN_CHECK = " v";
+string BTN_NEXT = "Next »";
+string BTN_BACK = "« Back";
+string BTN_REFRESH = ":: Refresh ::";
+string BTN_CHAT_INFO = "Chat Info";
+string BTN_CHANNELS = "Channels";
+string BTN_DANCES_BACK = "« Dances";
+string BTN_STATUS = ".: Status :.";
+string BTN_RESET = ".: Reset :.";
+string BTN_DANCE_MODE = "Mode …";
+string BTN_CONFIG_BACK = "« Config";
+string BTN_INVITE = "Invite …";
+string BTN_ANIMIX = "AnimiX …";
+string BTN_USERS = "Users …";
+string BTN_TITLER = "Titler …";
+string BTN_TITLER_CUSTOM = "Custom";
+string BTN_TITLER_STATS = "Stats";
+string BTN_TITLER_OFF = "Off";
+string BTN_TITLER_NAUGHTY = "Naughty";
+string BTN_TITLER_CHANGE = "Set Title …";
+string BTN_COLOR_NEXT = "Color ?";
+string BTN_COLOR_PREV = "? Color";
+string BTN_TITLER_BORDER = "Border";
+string BTN_EMPTY = " ";
+string BTN_NOTIMER = "Manual";
+
+string BTN_RANDOMIZE = "Random";
+string BTN_DANCES_ALL = "All Dances";
+
+integer gDIA_DANCE_MODE = 0;
+integer gDIA_INVITE = 0;
+integer gDIA_ANIMIX = 0;
+integer gDIA_TITLER = 0;
+integer gCHANNELS = 1;
+integer MAX_TITLE_LEN = 32;
+
+string BTN_SINGLE = "Single"; 
+string BTN_GROUP = "Group";
+string gDANCE_MODE = BTN_SINGLE; 
+string gDANCE_TIMER = "5";
+string gRANDOMIZE = "1";
+string gACTIVE_ANIMIX = BTN_DANCES_ALL;
+
+list gSENSOR_AGENT_NAMES = [];
+list gSENSOR_AGENT_KEYS = [];
+
+integer gTITLER_CHANNEL = 69;
+integer gTITLER_LISTEN_ID;
+integer gDIA_CHANNEL;
+integer gDIA_LISTEN_ID = 0;
+
+dia_config() {
+    integer pos = llGetAttached();
+    string btn_chat_info_toggle;
+    string btn_channels_toggle;
+    string btn_titler_toggle;
+    string msg = "\n";
+
+    msg += "Chat Info: show actions to owner in local\n";
+    msg += "Channels: allow users to send commands via chat\n";
+    msg += "Titler: set a titler style\n";
+
+    msg += "AnimiX: select a AnimiX to play\n";
+    msg += "Mode: show the dance mode sub menu\n";
+    msg += "Dances: back to dances menu\n";
+    msg += "Invite: invite a friend to dance\n";
+        
+    msg += "Status: shows the active dancers\n";
+    msg += "Reset: clears all dance slots";
+
+    btn_chat_info_toggle = BTN_CHAT_INFO;
+    if (gCHAT_INFO >= 1) {
+        btn_chat_info_toggle += BTN_CHECK;
+    }
+    
+    btn_channels_toggle = BTN_CHANNELS;
+    if (gCHANNELS == 1) {
+        btn_channels_toggle += BTN_CHECK;
+    }
+    
+    llDialog(OWNER, msg, [BTN_DANCES_BACK, BTN_STATUS, BTN_RESET, BTN_ANIMIX, BTN_TITLER, BTN_INVITE, BTN_DANCE_MODE, BTN_EMPTY, BTN_USERS, btn_chat_info_toggle,btn_channels_toggle,BTN_EMPTY], gDIA_CHANNEL);
+
+    if (gDIA_LISTEN_ID == 0) {
+        gDIA_LISTEN_ID = llListen(gDIA_CHANNEL, "", OWNER, "");
+    }
+    llSetTimerEvent(gDIA_TIMER);
+}
+dia_dance_mode() {
+    string btn_single_toggle;
+    string btn_group_toggle;
+    string btn_min0_toggle = BTN_NOTIMER;
+    string btn_min2_toggle = "2 mins";
+    string btn_min3_toggle = "3 mins";
+    string btn_min5_toggle = "5 mins";
+    string btn_min7_toggle = "7 mins";    
+    string btn_min10_toggle = "10 mins";
+    string btn_min15_toggle = "15 mins";
+    string btn_min20_toggle = "20 mins";
+    
+    string msg = "\nThe dance mode can be set to either Group or Single Mode. Single mode allows users to select dances of their choice. Group mode only animates using the dance selected by the owner. The owner can choose the dance manually or by by timer selecting a corresponding time value.";
+
+    if (gDANCE_MODE == BTN_GROUP) {
+        btn_single_toggle = BTN_SINGLE;
+        btn_group_toggle = BTN_GROUP + BTN_CHECK;
+    } else if (gDANCE_MODE == BTN_SINGLE) {
+        btn_single_toggle = BTN_SINGLE + BTN_CHECK;
+        btn_group_toggle = BTN_GROUP;
+    }
+
+    if (gDANCE_TIMER == "2") {
+        btn_min2_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "3") {
+        btn_min3_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "5") {
+        btn_min5_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "7") {
+        btn_min7_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "10") {
+        btn_min10_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "15") {
+        btn_min15_toggle += BTN_CHECK;
+    } else if (gDANCE_TIMER == "0") {
+        btn_min0_toggle += BTN_CHECK;
+    }
+
+    llDialog(OWNER, msg, [BTN_CONFIG_BACK, btn_group_toggle, btn_single_toggle, BTN_EMPTY, btn_min0_toggle, BTN_EMPTY, btn_min2_toggle, btn_min3_toggle, btn_min5_toggle, btn_min7_toggle, btn_min10_toggle, btn_min15_toggle], gDIA_CHANNEL);
+    
+    if (gDIA_LISTEN_ID == 0) {
+        gDIA_LISTEN_ID = llListen(gDIA_CHANNEL, "", OWNER, "");
+    }
+    llSetTimerEvent(gDIA_TIMER);
+}
+dia_titler() {
+    string btn_custom_toggle;
+    string btn_off_toggle;
+    string btn_stats_toggle;
+    string btn_naughty_toggle;
+    string btn_border_toggle;
+    string btn_min10_toggle = "10 mins";
+    string btn_min15_toggle = "15 mins";
+    string btn_min20_toggle = "20 mins";
+
+    string  msg = "Color: steps through different title colors";
+    msg += "Border: displays a border around the title if space allows\n";
+    msg += "N mins: how often to allow users to set a new title";
+
+
+    btn_custom_toggle = BTN_TITLER_CUSTOM;
+    btn_off_toggle = BTN_TITLER_OFF;
+    btn_stats_toggle = BTN_TITLER_STATS;
+    btn_naughty_toggle = BTN_TITLER_NAUGHTY;
+
+    if (gTITLER_MODE == BTN_TITLER_OFF) {
+        btn_off_toggle += BTN_CHECK;
+    } else if (gTITLER_MODE == BTN_TITLER_CUSTOM) {
+        btn_custom_toggle += BTN_CHECK;
+    } else if (gTITLER_MODE == BTN_TITLER_STATS) {
+        btn_stats_toggle += BTN_CHECK;
+    } else if (gTITLER_MODE == BTN_TITLER_NAUGHTY) {
+        btn_naughty_toggle += BTN_CHECK;
+    }
+    
+    if (gTITLER_TIMER == "10") {
+        btn_min10_toggle += BTN_CHECK;
+    } else if (gTITLER_TIMER == "15") {
+        btn_min15_toggle += BTN_CHECK;
+    } else if (gTITLER_TIMER == "20") {
+        btn_min20_toggle += BTN_CHECK;
+    }
+    
+    btn_border_toggle = BTN_TITLER_BORDER;
+    if (gTITLER_BORDER == "1") {
+        btn_border_toggle += BTN_CHECK;
+    }
+
+    llDialog(OWNER, msg, [BTN_CONFIG_BACK,btn_custom_toggle,BTN_TITLER_CHANGE,btn_off_toggle, btn_stats_toggle,btn_naughty_toggle,btn_min10_toggle,btn_min15_toggle,btn_min20_toggle,BTN_COLOR_PREV,BTN_COLOR_NEXT, btn_border_toggle], gDIA_CHANNEL);
+    if (gDIA_LISTEN_ID == 0) {
+        gDIA_LISTEN_ID = llListen(gDIA_CHANNEL, "", OWNER, "");
+    }
+    llSetTimerEvent(gDIA_TIMER);
+}
+dia_sensor_agents(integer menu_num) {
+    string msg = "\n";
+    list controls;
+    integer num_agents;
+    integer first_index = 0;
+    integer last_index = llGetListLength(gSENSOR_AGENT_NAMES) - 1;
+    
+    if (last_index < 9) {
+        controls = [BTN_CONFIG_BACK, BTN_REFRESH, BTN_EMPTY];
+    } else {
+        if (menu_num == 0) {
+            controls = [BTN_CONFIG_BACK, BTN_REFRESH, BTN_NEXT];
+            last_index = 8;   
+        } else {
+            controls = [BTN_BACK, BTN_REFRESH, BTN_EMPTY];
+            first_index = 9;
+            last_index = 24;
+        }
+    }
+    
+    llDialog(OWNER, "Select a user to invite to dance", controls + llList2List(gSENSOR_AGENT_NAMES,first_index,last_index), gDIA_CHANNEL);
+    
+    if (gDIA_LISTEN_ID == 0) {
+        gDIA_LISTEN_ID = llListen(gDIA_CHANNEL, "", OWNER, "");
+    }
+    llSetTimerEvent(gDIA_TIMER);
+}
+dia_animix() {
+    integer i;
+    integer num_notecards = llGetInventoryNumber(INVENTORY_NOTECARD);
+    list notecards = [];
+    string nc;
+    string btn_randomize_toggle;
+    string btn_dances_all_toggle;
+
+    for (i = 0; i < num_notecards; ++i) {
+        nc = llGetInventoryName(INVENTORY_NOTECARD, i);
+        
+        if (nc != "AnimiX Help") {
+            if (nc == gACTIVE_ANIMIX) {
+                nc = nc + BTN_CHECK;
+            }
+        
+            notecards = (notecards = []) + notecards + nc;
+        }
+    }
+    
+    btn_randomize_toggle = BTN_RANDOMIZE;
+    if (gRANDOMIZE == "1") {
+        btn_randomize_toggle += BTN_CHECK;
+    }
+
+    btn_dances_all_toggle = BTN_DANCES_ALL;
+    if (gACTIVE_ANIMIX == BTN_DANCES_ALL) {
+        btn_dances_all_toggle += BTN_CHECK;
+    }
+    
+    llDialog(OWNER, "Select an animix to load", [BTN_CONFIG_BACK, btn_randomize_toggle, btn_dances_all_toggle] + notecards, gDIA_CHANNEL);
+    
+    if (gDIA_LISTEN_ID == 0) {
+        gDIA_LISTEN_ID = llListen(gDIA_CHANNEL, "", OWNER, "");
+    }
+    llSetTimerEvent(gDIA_TIMER);
+}
+init_config(string argv) {
+    gCHAT_INFO = (integer)argv;
+    OWNER = llGetOwner();
+    
+    gDANCE_MODE = BTN_SINGLE; 
+    gTITLER_MODE = BTN_TITLER_OFF;
+    set_titler();
+
+    show_status();
+
+    gDIA_DANCE_MODE = 0;
+    gDIA_ANIMIX = 0;
+    gDIA_INVITE = 0;
+    gDIA_TITLER = 0;
+
+    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_SET + "|" + gDANCE_TIMER, OWNER);
+    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, OWNER);
+    llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_BORDER + "|" + gTITLER_BORDER,NULL_KEY);
+}
+string get_titler_color() {
+    return(llList2String(gTITLER_COLORS, gTITLER_COLORS_INDEX % gTITLER_COLORS_NUM));
+}
+set_titler() {
+    llSetText("",<0.0,0.0,0.0>,0.0);
+    
+    if (gTITLER_MODE == BTN_TITLER_OFF) {
+        llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_NAUGHTY_OFF, NULL_KEY);
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_TITLER_STATS + "|" + LM_STATS_OFF, NULL_KEY);
+    } else if (gTITLER_MODE == BTN_TITLER_CUSTOM) {
+        if (gTITLER_CUSTOM_TEXT != "") {
+            llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_SET + "|" + gTITLER_CUSTOM_TEXT + "|" + get_titler_color(), NULL_KEY);
+        }
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_TITLER_STATS + "|" + LM_STATS_OFF, NULL_KEY);
+    } else if (gTITLER_MODE == BTN_TITLER_STATS) {
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_TITLER_STATS + "|" + LM_STATS_ON, NULL_KEY);
+    } else if (gTITLER_MODE == BTN_TITLER_NAUGHTY) {
+        llMessageLinked(LINK_THIS,SCRIPT_TITLER,LM_NAUGHTY_ON,NULL_KEY);
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_TITLER_STATS + "|" + LM_STATS_OFF, NULL_KEY);
+    }
+}
+set_titler_timer(string time) {
+    if (time == "10 mins") {
+        gTITLER_TIMER = "10";
+    } else if (time == "15 mins") {
+        gTITLER_TIMER = "15";
+    } else if (time == "20 mins") {
+        gTITLER_TIMER = "20";
+    } else {
+        gTITLER_TIMER = "10"; // if something goes wrong
+    }
+}
+
+set_titler_state(string cmd) {
+    if (cmd == BTN_TITLER_OFF) {
+        gTITLER_MODE = BTN_TITLER_OFF;
+        set_titler();
+    } else if (cmd == BTN_TITLER_CUSTOM || cmd == BTN_TITLER_CUSTOM + BTN_CHECK) {
+        gTITLER_MODE = BTN_TITLER_CUSTOM;
+        set_titler();
+    } else if (cmd == BTN_TITLER_STATS || cmd == BTN_TITLER_STATS + BTN_CHECK) {
+        gTITLER_MODE = BTN_TITLER_STATS;
+        set_titler();
+    } else if (cmd == BTN_TITLER_NAUGHTY || cmd == BTN_TITLER_NAUGHTY + BTN_CHECK) {
+        gTITLER_MODE = BTN_TITLER_NAUGHTY;
+        set_titler();
+    } else if (cmd == BTN_TITLER_BORDER || cmd == BTN_TITLER_BORDER + BTN_CHECK) {
+        if (gTITLER_MODE == BTN_TITLER_STATS) {
+            print_chat(0,"Border is not available when stats mode is enabled");
+        } else {
+            if (gTITLER_BORDER == "0") {
+                gTITLER_BORDER = "1";
+            } else {
+                gTITLER_BORDER = "0";
+            }
+            llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_BORDER + "|" + gTITLER_BORDER,NULL_KEY);
+        }
+    } else if (cmd == BTN_COLOR_NEXT) {
+        ++gTITLER_COLORS_INDEX;
+        if (gTITLER_COLORS_INDEX == gTITLER_COLORS_NUM) {
+            gTITLER_COLORS_INDEX = 0;
+        }
+        llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_COLOR + "|" + get_titler_color(),NULL_KEY);
+    } else if (cmd == BTN_COLOR_PREV) {
+        --gTITLER_COLORS_INDEX;
+        if (gTITLER_COLORS_INDEX < 0) {
+            gTITLER_COLORS_INDEX = gTITLER_COLORS_NUM - 1;
+        }
+        llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_COLOR + "|" + get_titler_color(),NULL_KEY);           
+    } else if (cmd == BTN_TITLER_CHANGE) {
+        gTITLER_CHANNEL = (integer)llFrand(998) + 1;
+        llInstantMessage(OWNER, "Type /" + (string)gTITLER_CHANNEL + " followed by desired text to set title; listening for " + (string)gDIA_TIMER + " seconds …" );
+        gTITLER_LISTENING = 1;
+        gTITLER_LISTEN_ID = llListen(gTITLER_CHANNEL, "", OWNER, "");
+        llSetTimerEvent(gDIA_TIMER);
+    } else {
+        integer ttimer = (integer)cmd;
+        
+        if (ttimer >= 10 && ttimer <= 99) {
+            set_titler_timer(cmd);
+            if (gTITLER_MODE != BTN_TITLER_NAUGHTY) {
+                print_chat(0, "WARNING! naughty text is Off ");
+            }
+            llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_NAUGHTY_TIMER_SET + "|" + gTITLER_TIMER, NULL_KEY);
+        } else {
+            print_chat(0, "Invalid timer command");
+        }
+    }
+} 
+string get_dance_timer_label() {
+    if (gDANCE_TIMER == "0") {
+        return(BTN_NOTIMER);
+    } else {
+        return(gDANCE_TIMER + " minutes");
+    }
+}
+set_dance_timer(string time) {
+    if (time == "2 mins") {
+        gDANCE_TIMER = "2";
+    } else if (time == "3 mins") {
+        gDANCE_TIMER = "3";
+    } else if (time == "5 mins") {
+        gDANCE_TIMER = "5";
+    } else if (time == "10 mins") {
+        gDANCE_TIMER = "10";
+    } else if (time == "15 mins") {
+        gDANCE_TIMER = "15";
+    } else if (time == BTN_NOTIMER) {
+        gDANCE_TIMER = "0";
+    }
+}
+show_status() {
+    if (gTITLER_MODE == BTN_TITLER_CUSTOM) {
+        print_chat(1,"Titler mode set to custom “" + gTITLER_CUSTOM_TEXT + "”");
+    } else if (gTITLER_MODE == BTN_TITLER_STATS ) {
+        print_chat(1, "Titler mode set to stats");
+    } else if (gTITLER_MODE == BTN_TITLER_NAUGHTY) {
+        print_chat(1, "Titler mode set to naughty");
+    } else {
+        print_chat(1,"Titler is Off");
+    }
+
+    if (gDANCE_MODE == BTN_SINGLE) {
+        print_chat(1,"Dance Mode “" + BTN_SINGLE + "”"); 
+    } else {
+        print_chat(1,"Dance Mode “" + BTN_GROUP + "”");
+    }
+}
+parse_argv(string argv) {
+    list argv = llParseString2List(argv, ["|"], []);
+    
+    gCOMMAND = llList2String(argv,0);
+    
+    gARG1 = "";
+    gARG2 = "";
+    if (llGetListLength(argv) == 2) {
+        gARG1 = llList2String(argv, 1);
+    } else if (llGetListLength(argv) == 3) {
+        gARG1 = llList2String(argv, 1);
+        gARG2 = llList2String(argv, 2);
+    }
+    
+    print_chat(4,"argv[" + llList2CSV(argv) + "]");  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+print_chat(integer level, string msg) {
+    if (level <= gCHAT_INFO) {
+        if (gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        } else { 
+            llOwnerSay("[Config] " + msg);            
+        }
+    }
+}
+
+default {
+    link_message(integer sender_num, integer script_num, string argv, key ignore) {
+        if (script_num == SCRIPT_NUM) {
+            parse_argv(argv);
+            
+            if (gCOMMAND == LM_CONFIG) {
+                gDIA_DANCE_MODE = 0;
+                gDIA_ANIMIX = 0;
+                gDIA_INVITE = 0;
+                gDIA_TITLER = 0;
+                dia_config();
+            } else if (gCOMMAND == LM_DANCE_MODE) {
+                gDIA_DANCE_MODE = 1;
+                gDIA_ANIMIX = 0;
+                gDIA_INVITE = 0;
+                gDIA_TITLER = 0;
+                dia_dance_mode();
+            } else if (gCOMMAND == LM_ANIMIX) {
+                gDIA_DANCE_MODE = 0;
+                gDIA_ANIMIX = 1;
+                gDIA_INVITE = 0;
+                gDIA_TITLER = 0;
+                dia_animix();                
+            } else if (gCOMMAND == LM_INVITE) {                                     
+                gARG1 = llToLower(gARG1);
+                llSensor("", "", AGENT, 92, PI);                
+            } else if (gCOMMAND == LM_TITLER) {
+                if (gARG1 == "") {
+                    gDIA_DANCE_MODE = 0;
+                    gDIA_ANIMIX = 0;
+                    gDIA_INVITE = 0;
+                    gDIA_TITLER = 1;
+                    dia_titler();
+                } else {
+                    set_titler_state(gARG1);
+                }
+            }                                   
+        } else if (script_num == LM_INIT) {
+            init_config(argv);
+        } else if (script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if (gCHAT_INFO == 0) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if (tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        } else if (script_num == LM_SET_CHAT_INFO) {
+            if (gCHAT_INFO != (integer)argv) {
+                gCHAT_INFO = (integer)argv;
+                
+                if (gCHAT_INFO > 0) {
+                    print_chat(1,"Chat Info is now enabled"); 
+                } else {
+                    print_chat(0,"Chat Info is now disabled"); 
+                }
+            }
+        }
+    }
+    sensor(integer num_detected) {
+        string this_agent = "";
+        string lc_agent = "";
+        key this_key = NULL_KEY;
+        integer i;
+        list name;
+        integer invite_sent = 0;
+        integer arg1_strlen = llStringLength(gARG1);
+
+        gSENSOR_AGENT_NAMES = [];
+        gSENSOR_AGENT_KEYS = [];
+        // Needs subroutine to request current users to filter those
+        // Also, we need to subtract to that number the number of current agents
+        // so that in the last menu we only display 1 if there is only one
+        // available slot?
+        for (i = 0; i < num_detected; ++i) {
+            this_key = llDetectedKey(i);
+            this_agent = llGetSubString(llDetectedName(i),0,23);
+            lc_agent = llToLower(this_agent);
+
+            if (gCOMMAND == LM_INVITE) {
+                name = llParseString2List(lc_agent, [" "], []);
+                
+                if (llStringLength(llList2String(name,0)) > arg1_strlen) {
+                    lc_agent = llList2String(name,0);
+                }
+                
+                if (gARG1 == llGetSubString(lc_agent, 0, arg1_strlen - 1)) {
+                    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_NEW_SENSOR, this_key);
+                    print_chat(0, "Found “" + llDetectedName(i) + "”, sending request …");
+                    invite_sent = 1;
+                    i = num_detected;
+                }
+            }
+            
+            if (this_key != OWNER) {
+                if (llListFindList(gSENSOR_AGENT_NAMES, [this_agent]) < 0) {
+                    gSENSOR_AGENT_NAMES = (gSENSOR_AGENT_NAMES = []) + gSENSOR_AGENT_NAMES + [this_agent];
+                    gSENSOR_AGENT_KEYS = (gSENSOR_AGENT_KEYS = []) + gSENSOR_AGENT_KEYS + [this_key];
+                }
+            }
+        }
+        
+        if (invite_sent == 0) {
+            if (llGetListLength(gSENSOR_AGENT_NAMES) > 0) {
+                gDIA_DANCE_MODE = 0;
+                gDIA_ANIMIX = 0;
+                gDIA_INVITE = 1;
+                gDIA_TITLER = 0;            
+                dia_sensor_agents(0);
+            } else {
+                print_chat(0,"No agents in range");
+            }
+        }
+    }
+    listen(integer channel, string agent_name, key agent_key, string choice) {
+        if (agent_key == OWNER) {
+            if (channel == gTITLER_CHANNEL) {
+                if (llStringLength(choice) > MAX_TITLE_LEN) {
+                    print_chat(0, "Sorry, title cannot be longer than " + (string)MAX_TITLE_LEN + " characters, you entered " + (string)llStringLength(choice) + ".");
+                } else {
+                    gTITLER_LISTENING = 0;
+                    llListenRemove(gTITLER_LISTEN_ID);
+                    llSetTimerEvent(gDIA_TIMER);
+                
+                    gTITLER_CUSTOM_TEXT = choice;
+                    set_titler();
+                    print_chat(1,"TItle set successfully");
+                }
+            } else if (gDIA_DANCE_MODE == 1) {
+                if (choice == BTN_CONFIG_BACK) {
+                    gDIA_DANCE_MODE = 0;
+                    dia_config();
+                } else {
+                    // If we are in single mode, the timer must be stop and we set the variable in the main script
+                    // The main script will take care of synching the agents
+                    if (choice == BTN_SINGLE || choice == BTN_SINGLE + BTN_CHECK) {
+                        gDANCE_MODE = BTN_SINGLE;
+                        print_chat(1, "“" + BTN_SINGLE + "” dance mode enabled");
+                        llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, OWNER);
+                        
+                        llMessageLinked(LINK_THIS, LM_AGENT_SYNC, LM_SET_DANCE_MODE + "|" + gDANCE_MODE + "|", OWNER);
+                        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_SET_DANCE_MODE + "|" + gDANCE_MODE, OWNER);
+                    } else if (choice == BTN_GROUP || choice == BTN_GROUP + BTN_CHECK) {
+                            gDANCE_MODE = BTN_GROUP;
+                            print_chat(1,"“" + BTN_GROUP + "” dance mode enabled.");
+                            llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_NEXT, NULL_KEY);
+                            //llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_START, OWNER);
+                            
+                            //llMessageLinked(LINK_THIS, LM_AGENT_SYNC, LM_SET_DANCE_MODE + "|" + gDANCE_MODE, OWNER);
+                            llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_SET_DANCE_MODE + "|" + gDANCE_MODE, OWNER);
+                    } else {
+                        // Otherwise we clicked on a time. If we are in single mode the time is not relevant
+                        // so we make the user aware of this fact.
+                        set_dance_timer(choice);
+                        if (gDANCE_MODE == BTN_SINGLE) {
+                            print_chat(0, "WARNING! dance mode set to ”" + BTN_SINGLE + "”");
+                        }
+                        llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_SET + "|" + gDANCE_TIMER, OWNER);
+                    }
+                    dia_dance_mode();
+                }
+            } else if (gDIA_INVITE == 1) {
+                if (choice == BTN_CONFIG_BACK) {
+                    gDIA_INVITE = 0;
+                    dia_config();
+                } else if (choice == BTN_NEXT) {
+                    dia_sensor_agents(1);
+                } else if (choice == BTN_BACK) {
+                    dia_sensor_agents(0);
+                } else {
+                    integer sensor_agent_index = llListFindList(gSENSOR_AGENT_NAMES, [choice]);
+                    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_NEW_SENSOR, llList2Key(gSENSOR_AGENT_KEYS, sensor_agent_index));
+                    
+                    if (sensor_agent_index > 8) {
+                        dia_sensor_agents(1);
+                    } else {
+                        dia_sensor_agents(0);
+                    }
+                }
+            } else if (gDIA_ANIMIX == 1) {
+                if (choice == BTN_CONFIG_BACK) {
+                    gDIA_ANIMIX = 0;
+                    dia_config();
+                } else { 
+                    if (choice == BTN_RANDOMIZE) {
+                        print_chat(1, "Dance randomize enabled");
+                        gRANDOMIZE = "1";
+                        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_RANDOMIZE + "|" + gRANDOMIZE,NULL_KEY);
+                        dia_animix();
+                    } else if (choice == BTN_RANDOMIZE + BTN_CHECK) {
+                        print_chat(0, "Dance radomize disabled");
+                        gRANDOMIZE = "0";
+                        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_RANDOMIZE + "|" + gRANDOMIZE,NULL_KEY);
+                        dia_animix();
+                    
+                    } else if (choice == BTN_DANCES_ALL || llGetSubString(choice, 0, -3) == BTN_DANCES_ALL) {
+                        gACTIVE_ANIMIX = choice;
+                        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_LOAD_ALL + "|" + gRANDOMIZE,NULL_KEY);
+                    } else {
+                        if (llGetSubString(choice, -2, -1) == BTN_CHECK) {
+                            gACTIVE_ANIMIX = llGetSubString(choice, 0, -3);
+                        } else {
+                            gACTIVE_ANIMIX = choice;
+                        }
+                        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_LOAD_ANIMIX + "|" + gRANDOMIZE + "|" + gACTIVE_ANIMIX,NULL_KEY);
+                    }
+                }
+            } else if (gDIA_TITLER == 1){
+                if (choice == BTN_CONFIG_BACK) {
+                    gDIA_TITLER = 0;
+                    dia_config();
+                } else {
+                    set_titler_state(choice);
+                    dia_titler();
+                }                           
+            } else { 
+                if (choice == BTN_DANCES_BACK) {
+                    // To go back to the main menu we need to go through 
+                    // request the current dances. This action in turn 
+                    // will send a linked message to display the menu.
+                    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_CONFIG,NULL_KEY);
+                    llSetTimerEvent(0.0); 
+                } else if (choice == BTN_USERS) {
+                    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENTS_DIA,NULL_KEY);
+                    llSetTimerEvent(0.0);
+                } else {
+                    if (choice == BTN_STATUS) {
+                        llMessageLinked(LINK_THIS, LM_STATUS_SHOW, "", NULL_KEY);
+                        dia_config();
+                    } else if (choice == BTN_RESET) {
+                        llMessageLinked(LINK_THIS, SCRIPT_MAIN, (string)LM_INIT, NULL_KEY);
+                        dia_config();
+                    } else if (choice == BTN_CHAT_INFO + BTN_CHECK) {
+                        print_chat(1,"Chat Info is now disabled");
+                        gCHAT_INFO = 0;
+                        dia_config();
+                        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "0", NULL_KEY);
+                    } else if (choice == BTN_CHAT_INFO) {
+                        gCHAT_INFO = 1;
+                        print_chat(1,"Chat Info is now enabled");                        
+                        dia_config();
+                        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "1", NULL_KEY);
+                    } else if (choice == BTN_CHANNELS + BTN_CHECK) {
+                        print_chat(1,"Channels are now disabled");
+                        gCHANNELS = 0;
+                        dia_config();
+                        llMessageLinked(LINK_THIS, SCRIPT_COMMAND, LM_SET_CHANNELS + "|0", NULL_KEY);
+                    } else if (choice == BTN_CHANNELS) {
+                        print_chat(1,"Channels are now enabled");
+                        gCHANNELS = 1;
+                        dia_config();
+                        llMessageLinked(LINK_THIS, SCRIPT_COMMAND, LM_SET_CHANNELS + "|1", NULL_KEY);
+                    } else if (choice == BTN_DANCE_MODE) {
+                        gDIA_DANCE_MODE = 1;
+                        dia_dance_mode();
+                    } else if (choice == BTN_INVITE) {
+                        gDIA_INVITE = 1;
+                        llSensor("", "", AGENT, 92, PI);
+                    } else if (choice == BTN_ANIMIX) {
+                        gDIA_ANIMIX = 1;
+                        dia_animix();
+                    } else if (choice == BTN_TITLER) {
+                        gDIA_TITLER = 1;
+                        dia_titler();
+                    } else {
+                        print_chat(2,"Unexpected error, unrecognized command ”" + choice + "”");
+                        dia_config();
+                    }
+                }
+            }
+        }
+    }
+    timer() {
+        if (gTITLER_LISTENING == 1) {
+            gTITLER_LISTENING = 0;
+            if (gCHAT_INFO > 0) {
+                llInstantMessage(OWNER, "Titler set no longer listening");
+            }
+            llListenRemove(gTITLER_LISTEN_ID);
+            llSetTimerEvent(gDIA_TIMER);
+        } else {
+            print_chat(1,"Config dialog no longer listning");
+            llListenRemove(gDIA_LISTEN_ID);
+            gDIA_LISTEN_ID = 0;
+            llSetTimerEvent(0.0);        
+        }
+    }
+    state_entry() {
+        OWNER = llGetOwner();
+        // This channel is different than that of the main script. It has its on timer
+        // and it is deactivated when we hit back to the main menu.
+        gDIA_CHANNEL = (-1 * (integer)("0x" + llGetSubString((string)OWNER, -5, -1)));
+        
+        vector white   = <1.0, 1.0, 1.0>;
+        vector grey    = <0.5, 0.5, 0.5>;
+        vector black   = <0.0, 0.0, 0.0>;
+        vector red     = <1.0, 0.0, 0.0>;
+        vector green   = <0.0, 1.0, 0.0>;
+        vector blue    = <0.0, 0.0, 1.0>;
+        vector yellow  = <1.0, 1.0, 0.0>;
+        vector cyan    = <0.0, 1.0, 1.0>;
+        vector magenta = <1.0, 0.0, 1.0>;
+        
+        gTITLER_COLORS = [white,grey,black,red,green,blue,yellow,cyan,magenta];
+        gTITLER_COLORS_NUM = llGetListLength(gTITLER_COLORS);
+        gTITLER_COLORS_INDEX = 3; // Set the default color to red
+    }
+    attach(key attached) {
+        if (attached == NULL_KEY && gTITLER_MODE == BTN_TITLER_NAUGHTY) { // Just in case the user does not like the title he can detach
+            llSetText("", <0.0,0.0,0.0>, 0);
+        }
+    }
+    changed(integer change) { 
+        if (change & CHANGED_OWNER) {
+            llResetScript();
+        }
+    }    
+}

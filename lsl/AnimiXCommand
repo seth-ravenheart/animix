@@ -1,0 +1,413 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 69;
+string gCOMMAND = "";
+string  gARG1 = "";
+string  gARG2 = "";
+
+string LM_SET_CHANNELS = "c_set";
+
+integer SCRIPT_MAIN = 100;
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+integer LM_AGENT_SYNC = 99;
+
+string LM_AGENT_NEW = "a_new";
+string LM_AGENT_STOP  = "a_stop";
+string LM_AGENT_NEW_GRANTED = "a_granted";
+string LM_AGENT_NEW_NO_PERMS = "a_noperms";
+string LM_AGENT_COMMAND_STOP = "a_command_stop";
+
+string LM_COMMAND_CHANNEL_OPEN = "cli_open";
+string LM_COMMAND_CHANNEL_CLOSE = "cli_close";
+
+string LM_SET_DANCE_MODE = "set_dance_mode";
+string LM_AGENT_DANCE_CHANGE = "a_dance_change";
+string LM_DANCES_MENU_CHANNEL = "d_menu_channel";
+string LM_DANCES_LIST = "d_dances_list";
+string LM_DANCE_THIS = "d_dance_this";
+
+integer SCRIPT_LOAD = 200;
+
+integer SCRIPT_CONFIG = 400;
+string LM_CONFIG = "config";
+string LM_DANCE_MODE = "c_mode";
+string LM_ANIMIX = "c_animix";
+string LM_TITLER = "c_titler";
+string LM_USERS = "c_users";
+string LM_INVITE = "c_invite";
+
+string BTN_SINGLE = "Single";
+string BTN_GROUP = "Group";
+string gDANCE_MODE = BTN_SINGLE;
+
+key OWNER;
+integer gMAX_AGENTS = 4;
+integer gCHAT_INFO = 1;
+integer gCHANNELS = 1;
+
+integer DIA_CHANNEL = 69;
+list gLIDS = [];
+list gAGENTS = [];
+
+// It's better to have a single listen processing commands coming in on a single channel
+// than it is to have multiple listens open all on the same channel.
+// -- Strife Onizuka 23:13, 8 March 2008 (PST)
+// I interpret this that we should have a different channel for each agent
+
+init_commands(list args)
+{
+    integer i;   
+    OWNER = llGetOwner();
+    
+    gCHAT_INFO = llList2Integer(args,0);
+    gCHANNELS = llList2Integer(args,1);;
+    gMAX_AGENTS = llList2Integer(args,2);
+   
+    for(i = 0; i < gMAX_AGENTS; ++i) {
+        gAGENTS = (gAGENTS = []) + gAGENTS + [NULL_KEY];
+        gLIDS = (gLIDS = []) + gLIDS + [0];
+    }
+    show_status();
+}
+
+/*
+ * This function creaates a channer for a user. It finds the first
+ * available spot and insertes it there. This listener has to be 
+ * cloased when the timer expires.
+ * Not sure if this is implemented like this in SL  but makes sense to me
+ * If so, most applications I have seen out there leave channesl open.
+ */
+open_channel(key agent_key)
+{
+    integer listen_id = 0;
+    integer agent_index = -1; 
+
+    if (gCHANNELS) {
+        listen_id = llListen(DIA_CHANNEL, "", agent_key, "");
+        agent_index = llListFindList(gAGENTS, [NULL_KEY]);
+        
+        gAGENTS = llListReplaceList((gAGENTS = []) + gAGENTS, [agent_key], agent_index, agent_index);
+        gLIDS = llListReplaceList((gLIDS = []) + gLIDS, [listen_id], agent_index, agent_index);
+        print_chat(3,"Opened channel listener for " + llKey2Name(agent_key));    
+    } else {
+        print_chat(3,"No chat channel opened for " + llKey2Name(agent_key));
+    }
+}
+
+close_channel(key agent_key)
+{
+    integer agent_index = llListFindList(gAGENTS, [agent_key]);
+    integer listen_id = 0;
+    
+    if (gCHANNELS) {
+        if (agent_index >= 0) {
+            listen_id = llList2Integer(gLIDS, agent_index);
+            llListenRemove(listen_id);
+            gAGENTS = llListReplaceList((gAGENTS = []) + gAGENTS, [NULL_KEY], agent_index, agent_index);
+            gLIDS = llListReplaceList((gLIDS = []) + gLIDS, [0], agent_index, agent_index);
+            print_chat(3,"Closed channel listener for " + llKey2Name(agent_key)); 
+        } else {
+            print_chat(3,"Attempted to close channel on non existent user " + llKey2Name(agent_key));
+        }
+    }   
+}
+
+parse_argv(string argv, string delim)
+{
+    list argv = llParseString2List( argv, [delim], [] );
+    
+    gCOMMAND = llList2String(argv,0);    
+    gARG1 = "";
+    gARG2 = "";
+    
+    if ( llGetListLength( argv ) == 2 ) {
+        gARG1 = llList2String( argv, 1 );
+    } else if ( llGetListLength( argv ) == 3 ) {
+        gARG1 = llList2String( argv, 1 );
+        gARG2 = llList2String( argv, 2 );
+    }
+    
+    print_chat(3,"argv[" + llList2CSV( argv ) + "]" );  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+
+print_chat(integer level, string msg)
+{
+    if (level <= gCHAT_INFO) {
+        if (gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        } else { 
+            llOwnerSay("[CLI]" + msg);            
+        }
+    }
+}
+
+string get_first_name(key name)
+{
+    return(llList2String(llParseString2List(llKey2Name(name), [" "], []), 0));
+}
+
+print_help()
+{
+    string msg = "/me available commands: \n";
+    msg += "\tanimenu - show the main dances menu\n";
+    msg += "\tconfig - show the config menu\n";
+    msg += "\ttitler - show the titler menu\n";
+    msg += "\tmode - show the mode menu\n";
+    msg += "\tinvite - invite friends to dance when attached\n";
+    msg += "\tanimix - show animix menu\n";
+    msg += "\tchat on or off - enables or disables chat info";
+    
+    print_chat(0, msg);
+}
+
+string map_titler_commands()
+{
+    string BTN_TITLER_OFF = "Off";
+    string BTN_TITLER_CUSTOM = "Custom";
+    string BTN_TITLER_STATS = "Stats";
+    string BTN_TITLER_NAUGHTY = "Naughty";
+    string BTN_TITLER_CHANGE = "Set Title …";
+    string BTN_COLOR_NEXT = "Color →";
+    string BTN_COLOR_PREV = "← Color";
+    string BTN_TITLER_BORDER = "Border";
+    string cmd = llToLower(gARG1);
+    string arg = llToLower(gARG2);
+ 
+    if (cmd == "off") {
+        return(BTN_TITLER_OFF);
+    } else if (cmd == "custom") {
+        if (arg == "set" || arg == "change") {
+            return(BTN_TITLER_CHANGE);
+        } else {
+            return(BTN_TITLER_CUSTOM);
+        }
+    } else if (cmd == "set" || cmd == "change") {
+        return(BTN_TITLER_CHANGE);
+    } else if (cmd == "stats") {
+        return(BTN_TITLER_STATS);
+    } else if (cmd == "naughty") {
+        if (arg == "") {
+            return( BTN_TITLER_NAUGHTY);
+        }
+        integer ttimer = (integer)gARG2;
+        
+        if (ttimer >= 10 && ttimer <= 99) {  
+            return((string)ttimer);
+        } else {
+            print_chat(0, "timer must be in the range of 10 - 99 inclusive, setting to default of 15");
+            return("15");
+        }
+    } else if (cmd == "color") {
+        if (arg == "next" || arg == "") {
+            return(BTN_COLOR_NEXT);
+        } else if (arg == "prev" || arg == "rev" || arg == "reverse") {
+            return(BTN_COLOR_PREV);
+        }      else {
+            print_chat(0, "Invalid color option, assuming color next");
+            return(BTN_COLOR_NEXT);
+        }
+    } else if (cmd == "border") {
+        return(BTN_TITLER_BORDER);
+    }
+    return("");
+}
+// Error checking will be done by the main script
+// Does not really work to get a particular page, because of the caching
+animenu(key agent_key)
+{
+    if (gARG1 == "next" || gARG1 == ">") {
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU_CHANNEL + "|next", agent_key);
+    } else if (gARG1 == "prev" || gARG1 == "<") {
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU_CHANNEL + "|prev", agent_key);
+    } else {
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU_CHANNEL + "|0", agent_key);
+    }
+}
+
+config()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_CONFIG, NULL_KEY);
+}
+
+chat()
+{
+    if (gARG1 == "on") {
+        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "1", NULL_KEY);
+    } else if (gARG1 == "off") {
+        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "0", NULL_KEY);
+    }
+}
+channels()
+{
+    if (gARG1 == "on") {
+        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "1", NULL_KEY);
+    } else if (gARG1 == "off") {
+        llMessageLinked(LINK_THIS, LM_SET_CHAT_INFO, "0", NULL_KEY);
+    }
+}
+
+mode()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_DANCE_MODE, NULL_KEY);
+}
+
+animix()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_ANIMIX, NULL_KEY);
+}
+
+titler()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_TITLER + "|" + map_titler_commands(), NULL_KEY);
+}
+
+users()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_USERS, NULL_KEY);
+}
+
+invite()
+{
+    if (gARG1 == "") {
+        llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_INVITE, NULL_KEY);
+    } else {
+        if (gARG2 != "") {
+            gARG1 += " " + gARG2;
+        }
+        llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_INVITE + "|" + gARG1, NULL_KEY);
+    }
+}
+
+dances_list()
+{
+    llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_LIST, NULL_KEY);
+}
+
+show_status()
+{
+    print_chat(1,"Maximum Agents " + (string)gMAX_AGENTS);
+    print_chat(1,"Channels " + (string)gMAX_AGENTS);
+    print_agents();
+}
+
+print_agents()
+{
+    integer i;
+    key agent_key;
+    
+    for(i = 0; i < gMAX_AGENTS; ++i) {
+        agent_key = llList2Key(gAGENTS, i);
+        print_chat(1, "L" + (string)(i + 1) + " " + llKey2Name(agent_key) + "(" + (string)llList2Integer(gLIDS, i) + ")");        
+    }
+}
+default {
+
+    listen(integer channel, string agent_name, key agent_key, string cmd)
+    {
+        show_status();
+        if (agent_key == OWNER) {
+            parse_argv(cmd, " ");
+      
+            if (gCOMMAND == "animenu" || gCOMMAND == "menu") {
+                animenu(OWNER);
+            } else if (gCOMMAND == "config") {
+                config();
+            } else if (gCOMMAND == "chat") {
+                chat();
+            } else if (gCOMMAND == "mode") {
+                mode();
+            } else if (gCOMMAND == "animix") {
+                animix();
+            } else if (gCOMMAND == "titler") {
+                titler();
+            } else if (gCOMMAND == "users" ) {
+                users();
+            } else if (gCOMMAND == "invite") {
+                invite();
+            } else if (gCOMMAND == "list") {
+                dances_list();
+            } else if (gCOMMAND == "dance") {
+                llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCE_THIS + "|" + gARG1, NULL_KEY);
+            } else if (gCOMMAND == "next" || gCOMMAND == "+") {              
+                llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCE_THIS + "|next", NULL_KEY);
+            } else if (gCOMMAND == "prev" || gCOMMAND == "-") {
+                llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCE_THIS + "|prev", NULL_KEY);
+            } else if (gCOMMAND == "status") {
+                llMessageLinked(LINK_THIS, LM_STATUS_SHOW, "", NULL_KEY);
+            } else if (gCOMMAND == "stop") {
+                llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_COMMAND_STOP, OWNER);
+            } else if (gCOMMAND == "help") {
+                print_help();
+            } else {
+                llInstantMessage(agent_key, "Command “" + cmd + "” not recognized");
+            }
+        } else if (gCHANNELS == 1 && llListFindList(gAGENTS, [agent_key]) >= 0 ) {
+            parse_argv(cmd, " ");
+                        
+            if (gDANCE_MODE == BTN_SINGLE && (gCOMMAND == "animenu" || gCOMMAND == "menu")) {
+                integer cur_page = (integer)gARG1;
+                
+                if (cur_page >= 0 && cur_page < 100) {
+                    //llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU_CHANNEL + "|" + (string)SCRIPT_NUM + "|" + (string)cur_page, agent_key);
+                } else { //WE do not start with page 0, do we?
+                    //llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU_CHANNEL + "|" + (string)SCRIPT_NUM + "|0", agent_key);
+                }
+            } else if (gCOMMAND == "stop") {
+                //llInstantMessage(agent_key, "Thank you for using AnimiX " + get_first_name(agent_key) + ", see you soon :-)");
+                llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_COMMAND_STOP, agent_key);
+            } else {
+                //llInstantMessage(agent_key, "Command “" + cmd + "” not recognized");
+            }            
+        } else {
+            print_chat(3, llKey2Name(agent_key) + " issued /69 command but not found in agent list");
+        }
+    }
+
+    link_message(integer sender_num, integer script_num, string cmd, key agent_key)
+    {
+        if (script_num == SCRIPT_NUM) {
+            parse_argv(cmd, "|");
+
+            if (gCOMMAND == LM_COMMAND_CHANNEL_OPEN) {
+                open_channel(agent_key);
+            } else if (gCOMMAND == LM_COMMAND_CHANNEL_CLOSE) { 
+                close_channel(agent_key);
+            } else if (gCOMMAND == (string)LM_INIT) { 
+                init_commands(llParseString2List(gARG1, [","], []));
+            } else if (gCOMMAND == LM_SET_CHANNELS) {
+                gCHANNELS = (integer)gARG1;
+            }
+        } else if (script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if (gCHAT_INFO == 0) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if (tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        } else if (script_num == LM_SET_CHAT_INFO) {
+            if (gCHAT_INFO != (integer)cmd) {
+                gCHAT_INFO = (integer)cmd;
+                
+                if (gCHAT_INFO > 0) {
+                    print_chat(1,"Chat Info is now enabled"); 
+                } else {
+                    print_chat(0,"Chat Info is now disabled"); 
+                }
+            }
+        } else if (script_num == LM_INIT) {
+        }          
+    }
+    //on_rez(integer param)
+    //{
+    //    llResetScript();
+    //}
+}

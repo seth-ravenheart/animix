@@ -1,0 +1,460 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 200;
+string gCOMMAND = "";
+string  gARG1 = "";
+string  gARG2 = "";
+
+integer SCRIPT_MAIN = 100;
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+
+string LM_DANCES_LOAD = "d_load";
+string LM_DANCES_MENU = "d_menu";
+string LM_DANCES_NEXT  = "d_next";
+string LM_DANCES_LOAD_ANIMIX = "d_load_animix"; 
+string LM_DANCES_LOAD_ALL = "d_load_all";
+string LM_DANCES_NEXT_OVERRIDE = "d_next_override";
+string LM_DANCES_RANDOMIZE = "d_randomize";
+string LM_DANCES_LIST = "d_dances_list";
+string LM_DANCE_THIS = "d_dance_this";
+
+integer gNUM_MENUS;
+integer gDANCE_NUM;
+string gDANCES_CSV;
+integer gNOTECARD_SKIPPED;
+integer gCHAT_INFO = 0;
+integer MAX_BTN_STR_LEN = 24;
+integer MAX_ANIMIX_LEN = 24;
+integer DANCES_PER_MENU = 9;
+
+key NOTECARD_QID;
+list gANIMIX;
+string gANIMIX_ACTIVE;
+integer gNOTECARD_LINE = 0;
+integer gNEXT_DANCE = 0;
+integer gRANDOMIZE = 1;
+
+string BTN_BLANK = " ";
+
+dances_list() 
+{
+    integer i;
+    integer j;
+    integer list_length;
+    integer num_of_dances;
+    list dances;
+    string dance_list;
+    integer active_animix_length;
+
+    if (gANIMIX_ACTIVE == "") {
+        num_of_dances = llGetInventoryNumber(INVENTORY_ANIMATION);
+        
+        if (num_of_dances > 0) {
+            dance_list  = "\n===========\n";
+            dance_list += "Current Dances";
+            dance_list += "\n===========";       
+         
+            for (i = 0; i < num_of_dances; ++i) { 
+                dance_list += "\n" + (string)(i + 1) + ". " + llGetInventoryName(INVENTORY_ANIMATION,i);
+            }
+            llOwnerSay(dance_list);
+        } else {
+            llOwnerSay("No dances currently available");
+        }
+    } else {
+        list_length = llGetListLength(gANIMIX);
+        
+        if (list_length > 0) {
+            dance_list  = "\n===========\n";
+            dance_list += "Current AnimiX: " + gANIMIX_ACTIVE;
+            dance_list += "\n===========";
+
+            for (i = 0; i < list_length; ++i) {
+                dances = (dances = []) + llCSV2List(llList2String(gANIMIX, i));
+            
+                num_of_dances = llGetListLength(dances);
+            
+                for (j = 0; j < num_of_dances; ++ j) {
+                    dance_list += "\n" + (string)(j + 1 + i * 10)  + ". " + llList2String(dances, j);
+                }
+            }
+            llOwnerSay(dance_list);
+        } else {
+            llOwnerSay("No dances currently available");
+        }
+    }
+}
+integer animix_exists() 
+{
+    integer i;
+    integer num_notecards = llGetInventoryNumber(INVENTORY_NOTECARD);
+        
+    for (i = 0; i < num_notecards; ++i) {
+        if (gANIMIX_ACTIVE == llGetInventoryName(INVENTORY_NOTECARD, i)) {
+            return(1);
+        }
+    }
+    return(gANIMIX_ACTIVE == "");
+} 
+load_animix() 
+{
+    gANIMIX = [];
+    gDANCE_NUM = 0;
+    gDANCES_CSV = "";
+    gNOTECARD_SKIPPED = 0;
+    gNOTECARD_LINE = 0;
+
+    print_chat(1,"Loading dances from animix “" + gANIMIX_ACTIVE + "” …");
+
+    NOTECARD_QID = llGetNotecardLine((string)gANIMIX_ACTIVE,gNOTECARD_LINE); 
+}
+load_dance_menu() 
+{
+    integer i;
+    integer dance_num;
+    string  dance_name;
+    integer MAX_STR_LEN = 24; 
+
+    gDANCE_NUM = llGetInventoryNumber(INVENTORY_ANIMATION);
+    
+    print_chat(1,"Loading dances …");
+    
+    for (i = 0; i < gDANCE_NUM; ++i) { 
+        dance_name = llGetInventoryName(INVENTORY_ANIMATION,i);
+        // Checking that dance names are under MAX_STR_LEN characters. If any is found
+        // we will not allow the application to continue. If we do, then we would have to 
+        // keep track of those dances as well. More efficient to force the user to remove it.
+        if (llStringLength(dance_name) > MAX_STR_LEN) {
+            print_chat(0,"Dance \"" + dance_name + "\" is too long, please rename and try again");
+            i = gDANCE_NUM;
+            gDANCE_NUM = 0;
+        } else if (llSubStringIndex(dance_name,",") != -1) {
+            print_chat(0,"Dance \"" + dance_name + "\" contains commas which are not allowed, please rename and try again");
+            i = gDANCE_NUM;
+            gDANCE_NUM = 0;
+        }
+        
+    }
+    gNUM_MENUS =  gDANCE_NUM / DANCES_PER_MENU;
+
+    if (gDANCE_NUM % DANCES_PER_MENU > 0) {
+        ++gNUM_MENUS;
+    }
+  
+    if (gDANCE_NUM == 1) {    
+        print_chat(0,"Loaded a single dance from inventory");
+    } else if (gDANCE_NUM > 1) {
+        print_chat(0,"Loaded " + (string)gDANCE_NUM + " dances from inventory");
+    }
+    // If no dances are a vailable, a dialog with instructions is presented from SCRIPT_MAIN.
+    // This dialog is triggered by having the gDIA_NUM_MENUS variable less than 1.
+    // The user is not allowed to use the application until dances have been added
+    
+    if (gRANDOMIZE == 1) {
+        gNEXT_DANCE = (integer)llFrand(gDANCE_NUM);
+    }
+    else {
+        gNEXT_DANCE = 0;
+    }
+    
+    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_LOAD + "|" + (string)gNUM_MENUS + "|" + get_dance_menu(0), NULL_KEY);
+}
+string get_dance_menu(integer cur_menu) 
+{
+    integer i;
+    integer j;
+    string dance_csv;
+    list dances  = [];
+    list dances1 = [];
+    list dances2 = [];
+    list dances3 = [];
+    integer floor = cur_menu * DANCES_PER_MENU;
+    integer ceil  = floor + DANCES_PER_MENU;
+    
+    print_chat(4,"Generating menu " + (string)cur_menu);
+    
+    if (gANIMIX_ACTIVE == "") {
+        for (i = floor, j = 0; i < ceil && i < gDANCE_NUM; ++i, ++j) {
+            if (j < 3) {
+                dances3 = (dances3 = []) + dances3 + [llGetInventoryName(INVENTORY_ANIMATION,i)];
+            } else if (j < 6) {
+                dances2 = (dances2 = []) + dances2 + [llGetInventoryName(INVENTORY_ANIMATION,i)];
+            } else if (j < 9) {
+                dances1 = (dances1 = []) + dances1 + [llGetInventoryName(INVENTORY_ANIMATION,i)];
+            }
+        }
+    } else {
+        dances  = llCSV2List(llList2String(gANIMIX,cur_menu));
+        // Three separate sets to invert the order so that they are
+        // displayed from top to bottom, left to right.
+        for (i = 0; i < llGetListLength(dances); ++i) {
+            if (i < 3) { 
+                dances3 = (dances3 = []) + dances3 + [llList2String(dances,i)];
+            } else if (i < 6) {
+                dances2 = (dances2 = []) + dances2 + [llList2String(dances,i)];
+            } else if (i < 9) {
+                dances1 = (dances1 = []) + dances1 + [llList2String(dances,i)];
+            }
+        }       
+    }
+
+    // dances is really the last set so we start here. If we have
+    // any dances we append them at the bottom and cushion if necessary.
+    if (llGetListLength(dances1) > 0) {
+        if (llGetListLength(dances1) < 3) {
+            if (llGetListLength(dances1) == 2) {
+                dances1 = (dances1 = []) + dances1 + BTN_BLANK;
+            } else if (llGetListLength(dances1) == 1) {
+                dances1 = (dances1 = []) + dances1 + BTN_BLANK + BTN_BLANK;
+            }
+        }
+        dance_csv = llList2CSV(dances1) + "," + llList2CSV(dances2) + "," + llList2CSV(dances3);
+    // This will be here no matter what, we simply cushion them if empty
+    } else if (llGetListLength(dances2) > 0) {
+        if (llGetListLength(dances2) < 3) {
+            if (llGetListLength(dances2) == 2) {
+                dances2 = (dances2 = []) + dances2 + BTN_BLANK;
+            } else if (llGetListLength(dances2) == 1) {
+                dances2 = (dances2 = []) + dances2 + BTN_BLANK + BTN_BLANK;
+            }
+        }
+        dance_csv = llList2CSV(dances2) + "," + llList2CSV(dances3);
+    } else {
+        // If we are nere, we only have dances in the first row, no need to cushion them
+        dance_csv = llList2CSV(dances3);
+    }
+
+    return(dance_csv);
+}
+set_next_dance(integer override) 
+{
+    list dances;
+    string next_dance; 
+
+    if (gDANCE_NUM > 0) {
+        if (override != 1) {
+
+            if (gRANDOMIZE == 1) {
+                gNEXT_DANCE = (integer)llFrand(gDANCE_NUM);
+            } else {
+                gNEXT_DANCE = ++gNEXT_DANCE % gDANCE_NUM;
+            }
+        }
+
+        if (gANIMIX_ACTIVE == "") {
+            next_dance = llGetInventoryName(INVENTORY_ANIMATION, gNEXT_DANCE);
+        } else {
+            dances  = llCSV2List(llList2String(gANIMIX, gNEXT_DANCE / DANCES_PER_MENU));
+            next_dance = llList2String(dances,gNEXT_DANCE % DANCES_PER_MENU);
+        }
+
+        llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_NEXT + "|" + next_dance, llGetOwner());
+    }
+}
+set_next_dance_override(integer menu_num, string dance) 
+{
+    list dances;
+    integer dance_index;
+
+    dances = llCSV2List(get_dance_menu(menu_num));
+    dance_index = llListFindList(dances,[dance]);
+    // indexes 0, 1, 2 become 6, 7, 8
+    if (dance_index < 3) {
+        dance_index += 6;
+    // indexes 6, 7 , 8 become 0, 1, 2
+    } else if (dance_index > 5) {
+        dance_index -= 6;
+    }
+    gNEXT_DANCE = menu_num * DANCES_PER_MENU + dance_index; 
+
+    set_next_dance(1);
+}
+init_load(string argv) 
+{
+    gCHAT_INFO = (integer)argv;
+    gANIMIX = [];
+    gANIMIX_ACTIVE = "";
+    gNUM_MENUS = 0;
+    gDANCE_NUM = 0;
+    gNEXT_DANCE = 0;
+
+    show_status();
+}
+show_status() {
+    string animix_active;
+    
+    animix_active = gANIMIX_ACTIVE;
+    if (animix_active == "") {
+        animix_active = "not set";
+    }
+    print_chat(1,"Active Animix " + animix_active);
+    print_chat(1,"Number of Dances " + (string)gDANCE_NUM);
+    print_chat(1,"Free Memory " + (string)llGetFreeMemory());
+}
+parse_argv(string argv) {
+    list argv = llParseString2List(argv, ["|"], []);
+    
+    gCOMMAND = llList2String(argv,0);
+    
+    gARG1 = "";
+    gARG2 = "";
+    
+    if (llGetListLength(argv) == 2) {
+        gARG1 = llList2String(argv, 1);
+    } else if (llGetListLength(argv) == 3) {
+        gARG1 = llList2String(argv, 1);
+        gARG2 = llList2String(argv, 2);
+    }
+    
+    print_chat(4,"argv[" + llList2CSV(argv) + "]");  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+
+print_chat(integer level, string msg) {
+    if (level <= gCHAT_INFO) {
+        if (gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        } else { 
+            llOwnerSay("[Load] " + msg);            
+        }
+    }
+}
+
+default {
+    link_message(integer sender_num, integer script_num, string argv, key agent_key) {
+        if (script_num == SCRIPT_NUM) {
+            parse_argv(argv);
+
+            if (gCOMMAND == LM_DANCES_MENU) { 
+                llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_MENU + "|" + gARG1 + "|" + get_dance_menu((integer)gARG1), agent_key);
+            } else if (gCOMMAND == LM_DANCES_LOAD_ALL) {
+                gANIMIX_ACTIVE = "";
+                gRANDOMIZE = (integer)gARG1;
+                load_dance_menu();
+            } else if (gCOMMAND == LM_DANCES_LOAD_ANIMIX) {
+                gRANDOMIZE = (integer)gARG1;
+                gANIMIX_ACTIVE = gARG2;
+                load_animix();
+            } else if (gCOMMAND == LM_DANCES_LOAD) {
+                if (gANIMIX_ACTIVE == "") {
+                    load_dance_menu();
+                } else {
+                    load_animix();
+                }
+            } else if (gCOMMAND == LM_DANCES_NEXT) {
+                set_next_dance(0);
+            } else if (gCOMMAND == LM_DANCES_NEXT_OVERRIDE) {
+                set_next_dance_override((integer)gARG1,gARG2);
+            } else if (gCOMMAND == LM_DANCES_RANDOMIZE) {
+                gRANDOMIZE = (integer)gARG1;
+            } else if (gCOMMAND == LM_DANCES_LIST) {
+                dances_list();
+            } else if(gCOMMAND == LM_DANCE_THIS) {
+                if (gARG1 == "next") {
+                    gNEXT_DANCE = ++gNEXT_DANCE % gDANCE_NUM;                    
+                    set_next_dance(1);
+                    
+                } else  if(gARG1 == "prev") {
+                    if (gNEXT_DANCE > 0) {
+                        --gNEXT_DANCE;
+                    } else  { 
+                        gNEXT_DANCE = gDANCE_NUM -1;
+                    }
+                    set_next_dance(1);
+                } else {
+                    integer dance_number = (integer)gARG1 - 1;
+
+                    if (dance_number >= 0 && dance_number <= gDANCE_NUM) {
+                        gNEXT_DANCE = dance_number;
+                        set_next_dance(1);
+                    } else {
+                        llOwnerSay("Please select a dance between 1 and " + (string)gDANCE_NUM);
+                    }
+                }
+            }
+        } else if (script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if (gCHAT_INFO == 0) { 
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if (tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        } else if (script_num == LM_SET_CHAT_INFO) {
+            gCHAT_INFO = (integer)argv;
+        } else if (script_num == LM_INIT) {
+            init_load(argv);
+        }
+    }
+    dataserver(key query_id, string dance) {
+        if (query_id == NOTECARD_QID) { 
+            if (dance != EOF && gNOTECARD_LINE < MAX_ANIMIX_LEN) {
+                if (dance != "") {
+                    if (gDANCE_NUM > 0 && gDANCE_NUM % DANCES_PER_MENU == 0) {           
+                        gANIMIX = (gANIMIX = []) + gANIMIX + [llGetSubString(gDANCES_CSV,0,-2)];
+                        gDANCES_CSV = "";
+                    }    
+        
+                    if (llStringLength(dance) > MAX_BTN_STR_LEN) {
+                        print_chat(0,"Dance name \"" + dance + "\" is too long. The maximum allowed dance name is " + (string)MAX_BTN_STR_LEN + " characters");
+                        gDANCES_CSV = "";
+                        gDANCE_NUM  = 0;
+                        gNOTECARD_LINE = MAX_ANIMIX_LEN;
+                    } else if (llGetInventoryType(dance) == INVENTORY_NONE) {
+                        print_chat(0,"Dance name \"" + dance + "\" does not exist, please remove from notecard \"" + gANIMIX_ACTIVE + "\"");
+                        gDANCES_CSV = "";
+                        gDANCE_NUM  = 0;
+                        gNOTECARD_LINE = MAX_ANIMIX_LEN;
+                    } else if (llSubStringIndex(dance,",") != -1) {
+                        print_chat(0,"Dance \"" + dance + "\" contains commas which are not allowed, please rename and try again");
+                        gDANCES_CSV = "";
+                        gDANCE_NUM  = 0;
+                        gNOTECARD_LINE = MAX_ANIMIX_LEN;
+                    } else {
+                        gDANCES_CSV += dance + ",";
+                        ++gDANCE_NUM;
+                    }
+                }
+                NOTECARD_QID = llGetNotecardLine((string)gANIMIX_ACTIVE,++gNOTECARD_LINE);
+            } else {
+                if (gDANCES_CSV != "") {
+                    gANIMIX = (gANIMIX = []) + gANIMIX + [llGetSubString(gDANCES_CSV,0,-2)];
+                }
+                gNUM_MENUS = llGetListLength(gANIMIX);
+                llListSort(gANIMIX,1,TRUE);
+                
+                if (gRANDOMIZE == 1) {
+                    gNEXT_DANCE = (integer)llFrand(gDANCE_NUM);
+                } else {
+                    gNEXT_DANCE = 0;
+                }
+                
+                if (gDANCE_NUM > 0) {
+                    print_chat(0,"Loaded " + (string)gDANCE_NUM + " dances successfully.");
+                    llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_DANCES_LOAD_ANIMIX + "|" + (string)gNUM_MENUS + "|" + get_dance_menu(0), NULL_KEY);
+                } else {
+                    print_chat(0,"Unable to load dances from \"" + gANIMIX_ACTIVE + "\" animix, please check notecard!");
+                }
+            }
+        }
+    }
+    changed(integer change) {
+        if (change & CHANGED_OWNER) {
+            llResetScript();
+        }
+         
+        if (change & CHANGED_INVENTORY) {
+            if (! animix_exists()) {
+                print_chat(0, "“" + gANIMIX_ACTIVE + "” no longer exist, resetting…");
+                gANIMIX_ACTIVE = "";
+            }
+        }
+    }
+}

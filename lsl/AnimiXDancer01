@@ -1,0 +1,338 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 1;
+string gCOMMAND = "";
+string  gARG1 = "";
+string  gARG2 = "";
+
+integer SCRIPT_COMMAND = 69;
+string LM_COMMAND_CHANNEL_OPEN = "cli_open";
+string LM_COMMAND_CHANNEL_CLOSE = "cli_close";
+
+integer SCRIPT_MAIN = 100;
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+integer LM_SET_CHANNELS = 104;
+integer LM_AGENT_SYNC = 99;
+
+string LM_AGENT_NEW = "a_new";
+string LM_AGENT_STOP  = "a_stop";
+string LM_AGENT_NEW_GRANTED = "a_granted";
+string LM_AGENT_NEW_NO_PERMS = "a_noperms";
+
+string LM_SET_DANCE_MODE = "set_dance_mode";
+string LM_AGENT_DANCE_CHANGE = "a_dance_change";
+
+integer SCRIPT_LOAD = 200;
+
+integer SCRIPT_CONFIG = 400;
+string LM_CONFIG = "config";
+string LM_DANCE_MODE = "c_mode";
+string LM_ANIMIX = "c_animix";
+string LM_TITLER = "c_titler";
+string LM_USERS = "c_users";
+string LM_INVITE = "c_invite";
+
+string BTN_SINGLE = "Single";
+string BTN_GROUP = "Group";
+string gDANCE_MODE = BTN_SINGLE; 
+
+key OWNER;
+integer gPERMS = 0;
+key gAGENT_KEY = NULL_KEY;
+string gACTIVE_DANCE = "";
+integer gCHAT_INFO = 0;
+integer gCHANNELS = 1;
+string gSTOPPED = "1";
+
+init_agent(integer chat_info) 
+{
+    OWNER = llGetOwner();
+    gAGENT_KEY = NULL_KEY;
+    gACTIVE_DANCE = "";
+    gDANCE_MODE = BTN_SINGLE;
+    gCHAT_INFO = chat_info;
+    gPERMS = 0;
+}
+
+string get_first_name(key name) 
+{
+    return(llList2String(llParseString2List(llKey2Name(name), [" "], []), 0));
+}
+
+print_usage(integer pos) 
+{
+    string msg = "";
+    
+    if(gCHANNELS == 0) {
+        if(gDANCE_MODE == BTN_SINGLE) {
+            if(pos != 0) {
+                if(gAGENT_KEY == OWNER) {
+                    msg += "You can click on your “" + get_attachment_point(pos) + "” to redisplay dance menu.";
+                } else {
+                    msg += "You can click on " + get_first_name(OWNER) + "'s “" + get_attachment_point(pos) + "” to redisplay dance menu.";
+                }
+            } else {
+                msg += "You can stop dancing by clicking on AnimiX once again.";
+            }
+        }
+    } else {
+        if(gDANCE_MODE == BTN_SINGLE) {
+            msg += "You can re-display the dance menu by saying “/" + (string)SCRIPT_COMMAND + " animenu” in local chat";
+                   
+        } else {
+            msg += "You can stop dancing saying “/" + (string)SCRIPT_COMMAND + " stop” in local";
+        }
+        
+        if(pos != 0) {
+            if(gAGENT_KEY == OWNER) {
+                msg += " or clicking on your “" + get_attachment_point(pos) + "”, if you can :-)";
+            } else {
+                msg += " or clicking on " + get_first_name(OWNER) + "’s “" + get_attachment_point(pos) + "” :-)";
+            }
+        } else {
+            msg += " or clicking on AnimiX once again.";
+        }        
+    }
+    llInstantMessage(gAGENT_KEY, msg);
+}
+
+remove_agent() 
+{
+    integer mask = llGetAgentInfo(gAGENT_KEY);
+    
+      // If the user is still around
+    if(mask != 0) {
+        llMessageLinked(LINK_THIS, SCRIPT_COMMAND, LM_COMMAND_CHANNEL_CLOSE, gAGENT_KEY);
+
+        stop_animation();
+    } 
+
+    init_agent(gCHAT_INFO);
+}
+
+stop_animation() 
+{
+    if(gPERMS & PERMISSION_TRIGGER_ANIMATION) {
+        if(gACTIVE_DANCE != "") {
+            llStopAnimation(gACTIVE_DANCE);
+        }
+    } else {
+        llRequestPermissions(gAGENT_KEY, PERMISSION_TRIGGER_ANIMATION);    
+    }
+}
+
+/* 
+ * To start the animation. Not that when in group mod.
+ * the owner may chooose to stop dancing  
+ */
+start_animation() 
+{
+    if(gPERMS & PERMISSION_TRIGGER_ANIMATION) {
+        if(gACTIVE_DANCE != "") {
+            llStartAnimation(gACTIVE_DANCE);
+            llInstantMessage(gAGENT_KEY,"Now dancing “" + gACTIVE_DANCE + "”");
+        }
+    } else {
+        llRequestPermissions(gAGENT_KEY, PERMISSION_TRIGGER_ANIMATION);    
+    }
+}
+
+show_status() 
+{
+    string msg = "";
+    
+    if(gAGENT_KEY != NULL_KEY) {
+        msg += "Agent (" + llKey2Name(gAGENT_KEY) + ") ";
+    }
+    
+    if(gACTIVE_DANCE != "") {
+        msg += "Dance (" + gACTIVE_DANCE + ") ";
+    }
+    
+    msg += "Mode (" + gDANCE_MODE + ") ";
+    
+    msg += "Free Memory (" + (string)llGetFreeMemory() + ")";
+    
+    print_chat(1, msg);
+}
+
+string get_attachment_point(integer pos) 
+{
+    if(pos == ATTACH_HEAD || pos == ATTACH_MOUTH || pos == ATTACH_CHIN || pos == ATTACH_NOSE) {
+        return("head");
+    } else if(pos == ATTACH_LEAR || pos == ATTACH_REAR || pos == ATTACH_LEYE || pos == ATTACH_REYE) {
+        return("head");
+    }  else if(pos == ATTACH_CHEST || pos == ATTACH_LEFT_PEC || pos == ATTACH_RIGHT_PEC) {
+        return("chest");
+    } else if(pos == ATTACH_PELVIS || pos == ATTACH_RHIP || pos == ATTACH_LHIP) {
+        return("sexy booty");
+    } else if(pos == ATTACH_RUARM || pos == ATTACH_RLARM) {
+        return("right arm");
+    } else if(pos == ATTACH_LUARM || pos == ATTACH_LLARM) {
+        return("left arm");
+    } else if(pos == ATTACH_RULEG || pos == ATTACH_RLLEG) {
+        return("right leg");
+    } else if(pos == ATTACH_LULEG || pos == ATTACH_LLLEG) {
+        return("left leg");
+    } else if(pos == ATTACH_BELLY) {
+        return("sexy tummy");
+    } else if(pos == ATTACH_LSHOULDER) {
+        return("left shoulder");
+    } else if(pos == ATTACH_RSHOULDER) {
+        return("right shoulder");
+    } else if(pos == ATTACH_LHAND) {
+        return("left hand");
+    } else if(pos == ATTACH_RHAND) {
+        return("right hand");
+    } else if(pos == ATTACH_LFOOT) {
+        return("left foot");
+    } else if(pos == ATTACH_RFOOT) {
+        return("right foot");
+    } else if(pos == ATTACH_BACK) {
+        return("back");
+    }
+    
+    return("Unknown attachment point");
+}
+
+parse_argv(string argv) 
+{
+    list argv = llParseString2List(argv, ["|"], []);
+    
+    gCOMMAND = llList2String(argv,0);    
+    gARG1 = "";
+    gARG2 = "";
+    
+    if(llGetListLength(argv) == 2) {
+        gARG1 = llList2String(argv, 1);
+    } else if(llGetListLength(argv) == 3) {
+        gARG1 = llList2String(argv, 1);
+        gARG2 = llList2String(argv, 2);
+    }
+    
+    print_chat(3,"argv[" + llList2CSV(argv) + "]");  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+
+print_chat(integer level, string msg) 
+{
+    if(level <= gCHAT_INFO) {
+        if(gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        } else { 
+            llOwnerSay("[Dancer" + (string)SCRIPT_NUM + "] " + msg);            
+        }
+    }
+}
+
+default {
+    link_message(integer sender_num, integer script_num, string argv, key agent_key) 
+    {
+        if(script_num == SCRIPT_NUM) {
+            parse_argv(argv);
+                 
+            if(gAGENT_KEY != NULL_KEY && gCOMMAND == LM_AGENT_DANCE_CHANGE) {
+                stop_animation();
+                gACTIVE_DANCE = gARG1;
+                start_animation();
+            } else if(gAGENT_KEY != NULL_KEY && gCOMMAND == LM_AGENT_STOP) {
+                if(gAGENT_KEY == OWNER && llGetAttached() > 0) {
+                    stop_animation();
+                } else {
+                    remove_agent();
+                }
+            } else if(gCOMMAND == LM_AGENT_NEW) {            
+                gACTIVE_DANCE = gARG1;
+                gAGENT_KEY = agent_key;
+                start_animation();
+            }
+        } else if(script_num == LM_AGENT_SYNC) {          
+            if(gAGENT_KEY != NULL_KEY) {
+                parse_argv(argv);
+
+                // The purpose of this code is to notify the user when switching dance modes
+                if(gCOMMAND == LM_SET_DANCE_MODE) {
+                    gDANCE_MODE = gARG1;
+                    print_chat(1, "Setting dance mode to “" + gDANCE_MODE + "”");
+                    
+                    if(gDANCE_MODE == BTN_SINGLE) {
+                        if(gAGENT_KEY != OWNER) {
+                            llInstantMessage(gAGENT_KEY, "“" + BTN_SINGLE + "” dance mode is now enabled");
+                        }
+                    } else {
+                        stop_animation();
+                        gACTIVE_DANCE = gARG2;
+                        llInstantMessage(gAGENT_KEY, "“" + BTN_GROUP + "” dance mode is now enabled");
+                        start_animation();
+                    }
+                    print_usage(llGetAttached());
+                } else {
+                    if (gAGENT_KEY != OWNER || gARG1 == gSTOPPED) {
+                        stop_animation();
+                    }
+                    
+                    gACTIVE_DANCE = gCOMMAND;
+                    
+                    if (gAGENT_KEY != OWNER || gARG1 != gSTOPPED) {
+                        start_animation();
+                    }
+                }
+               // If no dancer is available, we still want to sync the mode silently
+            } else {    
+                gDANCE_MODE = gARG1;
+            }
+        } else if(script_num == LM_INIT) {
+            init_agent((integer)argv);
+            show_status();
+        } else if(script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            if(gCHAT_INFO == 0) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if(tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        } else if(script_num == LM_SET_CHAT_INFO) {
+            gCHAT_INFO = (integer)argv;
+        } else if(script_num == LM_SET_CHANNELS) {
+            gCHANNELS = (integer)argv;
+        }
+    } 
+
+    run_time_permissions(integer perms) 
+    {
+        gPERMS = perms;
+        if(perms & PERMISSION_TRIGGER_ANIMATION) {
+            if(gCOMMAND == LM_AGENT_STOP) {
+                stop_animation();
+            } else {
+                llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_NEW_GRANTED, gAGENT_KEY);
+                start_animation();
+                llInstantMessage(gAGENT_KEY, "Welcome to AnimiX " + get_first_name(gAGENT_KEY) + "!");
+                print_usage(llGetAttached());
+            }
+        } else {
+            llMessageLinked(LINK_THIS, SCRIPT_MAIN, LM_AGENT_NEW + "|" + LM_AGENT_NEW_NO_PERMS, gAGENT_KEY);
+            gACTIVE_DANCE = "";
+            gAGENT_KEY = NULL_KEY;           
+        }
+    }
+
+    state_entry() 
+    {
+        init_agent(1);
+    }
+    
+    changed(integer change) 
+    { 
+        if (change & CHANGED_OWNER) {
+            llResetScript();
+        }
+    }
+}

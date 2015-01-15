@@ -1,0 +1,1002 @@
+// Author: Seth Ravenheart - May 7th, 2010
+// (c)opyright 2010
+
+integer SCRIPT_NUM = 100;
+string gCOMMAND = "";
+string gARG1 = "";
+string gARG2 = "";
+
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103; //Sets chat info from AnimXConfig
+integer LM_SET_CHANNELS = 104;
+integer LM_AGENT_SYNC = 99;
+
+string LM_AGENT_NEW = "a_new";
+string LM_AGENT_STOP  = "a_stop";
+string LM_AGENT_NEW_GRANTED = "a_granted";
+string LM_AGENT_NEW_NO_PERMS = "a_noperms";
+string LM_AGENT_NEW_SENSOR = "a_sensor";
+string LM_SET_DANCE_MODE = "set_dance_mode";
+string LM_AGENT_DANCE_CHANGE = "a_dance_change";
+string LM_AGENT_COMMAND_STOP = "a_command_stop";
+string LM_AGENTS_DIA = "a_users_dia";
+
+integer SCRIPT_LOAD = 200;
+string LM_DANCES_LOAD = "d_load";
+string LM_DANCES_MENU = "d_menu";
+string LM_DANCES_MENU_CHANNEL = "d_menu_channel";
+string LM_DANCES_NEXT  = "d_next";
+string LM_DANCES_LOAD_ANIMIX = "d_load_animix";
+string LM_DANCES_LOAD_ALL = "d_load_all";
+string LM_DANCES_NEXT_OVERRIDE = "d_next_override";
+
+integer SCRIPT_SYNC = 300; 
+string LM_TIMER_START = "t_start";
+string LM_TIMER_STOP = "t_stop";
+string LM_TIMER_SET = "t_set";
+
+integer SCRIPT_CONFIG = 400;
+string LM_CONFIG = "config";
+
+integer SCRIPT_TITLER = 500;
+string LM_TITLER_STATS = "c_stats";
+string LM_TITLER_TEXT = "sn_titler_text"; 
+
+string LM_STATS_ON = "st_on";
+string LM_STATS_OFF = "st_off";
+string gTITLER_MODE = LM_STATS_OFF;
+
+integer SCRIPT_COMMAND = 69;
+string LM_COMMAND_CHANNEL_OPEN = "cli_open";
+string LM_COMMAND_CHANNEL_CLOSE = "cli_close";
+
+key OWNER = NULL_KEY;
+integer gMAX_AGENTS = 5;
+list gAGENTS = [];
+list gAGENTS_MENU = [];
+list gAGENTS_LIDS = [];
+integer gAGENTS_ACTIVE = 0;
+
+float gMOUSE_DOWN_TIMER = 0;
+
+integer gCHAT_INFO = 0;
+integer gINVENTORY_CHANGED = 0;
+
+integer DIA_TIMER = 60;
+integer DIA_CHANNEL;
+integer gCHANNELS = 1;
+
+integer gDIA_MENU_NUM;
+list gDIA_MENU_CACHE;
+
+string BTN_BACK = "« BACK";
+string BTN_NEXT = "NEXT »";
+string BTN_STOP = ".: STOP :.";
+string BTN_START = ".: START :.";
+string BTN_CONFIG_BACK = "« Config";
+
+string BTN_CONFIG = "CONFIG .";
+string BTN_SINGLE = "Single";
+string BTN_GROUP = "Group";
+string BTN_EMPTY = " ";
+string BTN_AGENTS_CHANNEL = "Channel";
+string BTN_AGENTS_HELP = "Help";
+string BTN_AGENTS_STOP = "Stop";
+string BTN_AGENTS_BACK = "« Users";
+
+string gACTIVE_DANCE = "";
+string gDANCE_MODE = BTN_SINGLE;
+integer gSTOPPED = 1;
+
+integer gDIA_AGENTS_MENU = 0;
+integer gDIA_AGENTS_MENU_NUM = 0;
+string gDIA_AGENTS_MENU_NAME = "";
+key gDIA_AGENTS_MENU_KEY;
+
+init() 
+{
+    OWNER = llGetOwner();
+    DIA_CHANNEL = (-1 * (integer)("0x" + llGetSubString((string)llGetKey(), -5, -1)));
+    gDIA_MENU_CACHE = [];
+    gDIA_MENU_NUM = 0;
+    
+    init_agents();
+    show_status();
+    
+    llMessageLinked(LINK_THIS, LM_INIT, (string)gCHAT_INFO, NULL_KEY);
+    llMessageLinked(LINK_THIS, SCRIPT_COMMAND, 
+                    (string)LM_INIT + "|" + (string)gCHAT_INFO + "," + 
+                    (string)gCHANNELS + "," + (string)gMAX_AGENTS, NULL_KEY);
+    
+    if (llGetAttached() > 0) { // If it is attached, we add the owner
+        new_agent(OWNER, 0);
+    } 
+}
+init_agents() 
+{
+    integer i;
+
+    gAGENTS = [];
+    gAGENTS_ACTIVE = 0;
+    gACTIVE_DANCE = "";
+
+    print_chat(1, "Initializing agents");
+    
+    for (i = 0; i < gMAX_AGENTS; ++i) {
+        gAGENTS = (gAGENTS = []) + gAGENTS + [NULL_KEY];
+        llMessageLinked(LINK_THIS, i + 1, LM_AGENT_STOP, NULL_KEY);
+        
+        gAGENTS_MENU = (gAGENTS_MENU = []) + gAGENTS_MENU + [0];
+        gAGENTS_LIDS = (gAGENTS_LIDS = []) + gAGENTS_LIDS + ["0|0"];
+    }
+ 
+    print_chat(1, "Initialized " + (string)llGetListLength(gAGENTS) + " Agents");
+
+    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, NULL_KEY); 
+}
+reset_agents_menu() 
+{
+    integer i;
+    
+    for (i = 0; i < gMAX_AGENTS; ++i) {
+        gAGENTS_MENU = llListReplaceList((gAGENTS_MENU = []) + gAGENTS_MENU, [NULL_KEY], i, i);
+    }
+}
+/****************************/
+/********** Dialog **********/
+/****************************/
+dia_dances(key agent_key, string cur_menu_str, string dances) 
+{
+    list menu = [];
+    string msg = "\nSelect an animation from the list to which you would like to dance. ";  
+    integer cur_menu = (integer)cur_menu_str;
+    integer lid_index;
+    list lid_array;
+    string btn_stop_toggle = BTN_STOP;
+
+    if (agent_key == OWNER) {
+        msg += "The first page contains the " + BTN_CONFIG + " button to adjust settings";
+        
+        if (gSTOPPED == 1) {
+            btn_stop_toggle = BTN_START;
+        }
+    }
+    
+    if (gDIA_MENU_NUM > 0) {
+        if (gDIA_MENU_NUM > 1) {
+            msg += "\n\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t[page " + (string)(cur_menu + 1) + " of " + (string)gDIA_MENU_NUM + "]";
+        }
+
+        if (cur_menu == 0) {
+            if (agent_key == OWNER) {
+                menu = [BTN_CONFIG];
+            }
+            else {
+                menu = [BTN_EMPTY];
+            }
+        
+            if (gDIA_MENU_NUM == 1) {
+                menu = (menu = []) + menu + [btn_stop_toggle] + [BTN_EMPTY] + llCSV2List(dances);
+            }
+            else if (cur_menu == gDIA_MENU_NUM - 1) {
+                menu = (menu = []) + menu + [btn_stop_toggle] + [BTN_NEXT] + llCSV2List(dances);
+            }
+            else {
+                menu = (menu = []) + menu + [btn_stop_toggle] + [BTN_NEXT] + llCSV2List(dances);
+            }
+        }
+        else if (gDIA_MENU_NUM == 1) {
+            if (cur_menu == gDIA_MENU_NUM) {
+                menu = [BTN_BACK] + [btn_stop_toggle] + [BTN_EMPTY] + llCSV2List(dances);
+            }
+            else {
+                menu = [BTN_BACK] + [btn_stop_toggle] + [BTN_NEXT] + llCSV2List(dances);
+            }
+        }
+        else {
+            if (cur_menu == gDIA_MENU_NUM - 1) {
+                menu = (menu = []) + menu + [BTN_BACK] + [btn_stop_toggle] + [BTN_NEXT] + llCSV2List(dances);
+            }
+            else {
+                menu = (menu = []) + menu + [BTN_BACK] + [btn_stop_toggle] + [BTN_NEXT] + llCSV2List(dances);
+            }
+        }
+    }
+    else if (agent_key == OWNER) {
+        integer n = 1;
+        
+        msg  = "\nUnable to find any dances  :-(\n";
+        if (llGetAttached() > 0) {
+            msg += (string)n++ + ") Detach Animix \n";
+            msg += (string)n++ + ") Drop it to the ground\n";
+        }
+        msg += (string)n++ + ") Right click and select \"Edit\"\n";
+        msg += (string)n++ + ") Click on the \"Content\" tab\n";
+        msg += (string)n++ + ") Drop some dances from inventory\n";
+        msg += (string)n++ + ") Close the edit window\n"; 
+        
+        if (llGetAttached() > 0) {
+            msg += (string)n++ + ") Take back to inventory and wear it again!";
+        }
+        
+        msg += (string)n++ + ") Click once again and enjoy!";
+        
+        menu = [BTN_CONFIG];
+    }
+
+    llDialog(agent_key, msg, menu, DIA_CHANNEL);
+    
+    dia_listener_open(agent_key);
+}
+dia_listener_open(key agent_key) 
+{
+    integer lid_index = llListFindList(gAGENTS, [agent_key]);
+    list lid_array = llParseString2List(llList2String(gAGENTS_LIDS, lid_index), ["|"], []);
+    integer listen_id = llList2Integer(lid_array, 0);
+    
+    if (listen_id == 0) {
+        listen_id = llListen(DIA_CHANNEL, "", agent_key, "");
+        print_chat(3, "Opened listener " + (string)listen_id + " for " + llKey2Name(agent_key));
+        gAGENTS_LIDS = llListReplaceList((gAGENTS_LIDS = []) + gAGENTS_LIDS, [(string)listen_id + "|" + (string)llGetUnixTime()], lid_index, lid_index);
+    }
+    llSetTimerEvent(DIA_TIMER);
+}
+dia_listener_close() 
+{
+    integer i;
+    integer timestamp = llGetUnixTime();
+    list lid_array;
+    integer ltimer;
+    integer stop_timer = 1;
+    
+    for (i = 0; i < gMAX_AGENTS; ++i) {
+        lid_array = llParseString2List(llList2String(gAGENTS_LIDS, i), ["|"], []);
+        ltimer = llList2Integer(lid_array, 1);
+        
+        if (ltimer > 0 && timestamp - ltimer > DIA_TIMER) {
+            llInstantMessage(llList2Key(gAGENTS, i), "Dance dialog expired, please touch again when needed");
+            gAGENTS_LIDS = llListReplaceList((gAGENTS_LIDS = []) + gAGENTS_LIDS, ["0|0"], i, i);
+        }
+        else {
+            stop_timer = 0;
+        }
+    }
+    
+    if (stop_timer) {
+        llSetTimerEvent(0.0);
+    }
+} 
+dia_agents() 
+{
+    integer first_index;
+    integer last_index;
+    integer i;
+    string names_csv;
+    
+    if (gDIA_AGENTS_MENU_NUM == 0) {
+        first_index = 0;
+        
+        if (gAGENTS_ACTIVE <= 9) {
+            last_index = gAGENTS_ACTIVE - 1;
+        }
+        else {
+            last_index = 8;
+        }
+    }
+    else if (gDIA_AGENTS_MENU_NUM == gAGENTS_ACTIVE / 9) {
+        first_index = gAGENTS_ACTIVE - gAGENTS_ACTIVE % 9;
+        last_index = gAGENTS_ACTIVE;
+    }
+    else {
+        first_index = gDIA_AGENTS_MENU_NUM * 9;
+        last_index  = first_index + 8;
+    }
+    
+    for (i = first_index; i <= last_index; ++i) {
+        names_csv += llGetSubString(llKey2Name(llList2String(gAGENTS, i)), 0, 24) + ",";
+    }
+
+    llDialog(OWNER, "Active Agents", [BTN_CONFIG_BACK, BTN_EMPTY, BTN_EMPTY] + llCSV2List(llGetSubString(names_csv, 0, -2)), DIA_CHANNEL);
+    dia_listener_open(OWNER);
+}
+dia_agents_actions() 
+{
+    //llDialog(OWNER, "Choosing an action for " + gDIA_AGENTS_MENU_NAME, [BTN_AGENTS_BACK, BTN_EMPTY, BTN_EMPTY, BTN_AGENTS_STOP, BTN_AGENTS_CHANNEL, BTN_AGENTS_HELP], DIA_CHANNEL);
+    llDialog(OWNER, "Choosing an action for " + gDIA_AGENTS_MENU_NAME, [BTN_AGENTS_BACK, BTN_AGENTS_STOP, BTN_AGENTS_HELP], DIA_CHANNEL);
+    
+    dia_listener_open(OWNER);
+}
+cache_dances_menu(string menu_num, string dances) 
+{
+    if (llGetFreeMemory() > llStringLength(dances) * 2) {
+        print_chat(3, "caching menu " + menu_num + ". Free Memory: " + (string)llGetFreeMemory());
+        gDIA_MENU_CACHE = llListInsertList(gDIA_MENU_CACHE, [dances], (integer)menu_num);
+    }
+}
+/****************************/
+/********** DANCES **********/
+/****************************/
+reload_dances(key agent_key) 
+{
+    if (agent_key == OWNER) {
+        gINVENTORY_CHANGED = 0;
+        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_LOAD, OWNER);
+    }
+    else {
+        llInstantMessage(agent_key, "No dances currently available. Let's tell " + llKey2Name(OWNER) + " about it :-)");  
+        llInstantMessage(OWNER, llKey2Name(agent_key) + " seems eager to dance, lets add some dances!");
+    }
+}
+get_dances_menu(key agent_key, integer cur_menu) 
+{
+    string cached_menu_string; 
+    
+    cached_menu_string = llList2String(gDIA_MENU_CACHE, cur_menu);
+
+    if (llStringLength(cached_menu_string) > 0) {
+        print_chat(3, "Using cached menu " + (string)cur_menu);
+        dia_dances(agent_key, (string)cur_menu, cached_menu_string);
+    }
+    else {        
+        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_MENU + "|" + (string)cur_menu, agent_key);
+    }
+}
+/****************************/
+/********** AGENTS **********/
+/****************************/
+new_agent(key agent_key, integer agent_index) 
+{
+    print_chat(1, "Adding user " + llKey2Name(agent_key));
+    
+    gAGENTS = llListReplaceList((gAGENTS = []) + gAGENTS, [agent_key], agent_index, agent_index);
+    ++gAGENTS_ACTIVE;
+    
+    if (gDANCE_MODE == BTN_GROUP) {
+        if (gAGENTS_ACTIVE == 1) {
+            llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_START, NULL_KEY);
+            llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_MENU + "|0", agent_key);
+        }
+        else {
+            llMessageLinked(LINK_THIS, agent_index + 1, LM_AGENT_NEW + "|" + gACTIVE_DANCE, agent_key);
+        }
+    }
+    else {
+        llMessageLinked(LINK_THIS, agent_index + 1, LM_AGENT_NEW, agent_key);
+    }
+}
+stop_agents() 
+{
+    integer i;
+    string agent_key;
+
+    for (i = 0; i < gAGENTS_ACTIVE; ++i) {
+        agent_key = llList2String(gAGENTS, i);
+
+        if (agent_key != NULL_KEY) {
+            stop_agent(llKey2Name(agent_key), agent_key, i);
+        }
+    }
+}
+stop_agent(string agent_name, key agent_key, integer agent_index) 
+{
+    print_chat(1, "Resetting dancer " + agent_name);
+    
+    if (agent_key != OWNER || llGetAttached() == 0) {
+        remove_agent(agent_key, agent_index);
+    }
+    
+    if (agent_key == OWNER) {
+        gSTOPPED = 1;
+    }
+
+    llMessageLinked(LINK_THIS, agent_index + 1, LM_AGENT_STOP, agent_key);
+}
+remove_agent(key agent_key, integer agent_index) 
+{
+    gAGENTS = llListReplaceList((gAGENTS = []) + gAGENTS, [NULL_KEY], agent_index, agent_index);
+    gAGENTS_LIDS = llListReplaceList((gAGENTS_LIDS = []) + gAGENTS_LIDS, ["0|0"], agent_index, agent_index);
+    
+    if (gAGENTS_ACTIVE > 0) {
+        --gAGENTS_ACTIVE;
+
+        if (gAGENTS_ACTIVE == 0 && gDANCE_MODE == BTN_GROUP) {
+            llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, NULL_KEY);
+        }
+    }
+}
+remove_stale_agents() 
+{
+    integer i;
+    integer mask;
+    string agent_key;
+    string agent_name;
+
+    for (i = 0; i < gMAX_AGENTS; ++i) {
+        agent_key = llList2String(gAGENTS, i);
+
+        if (agent_key != NULL_KEY) {
+            mask = llGetAgentInfo(agent_key);
+
+            if (mask == 0) {
+                agent_name = llKey2Name(agent_key);
+                
+                print_chat(1,"Dancer " + agent_name + " out of range, removing .");
+
+                stop_agent(agent_name, agent_key, i);
+            }
+        }
+    }
+}
+
+sync_agents() 
+{
+    print_chat(3,"Synchronizing agents");
+
+    remove_stale_agents();
+    
+    if (gACTIVE_DANCE == "") {
+        llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_NEXT, NULL_KEY); 
+    }
+    else {
+        llMessageLinked(LINK_THIS, LM_AGENT_SYNC, gACTIVE_DANCE + "|" + (string)gSTOPPED, NULL_KEY); 
+    }
+}
+key get_agent_key(string agent_name)
+{
+    integer i;
+    
+    for (i = 0; i < gAGENTS_ACTIVE; ++i) { 
+        if (agent_name == llKey2Name(llList2Key(gAGENTS, i))) {
+            return(llList2Key(gAGENTS, i));
+        }
+    }
+    return(NULL_KEY);
+}
+/******************************/
+/********** Utilities *********/
+/******************************/
+set_titler_stats() {
+    if (gTITLER_MODE == LM_STATS_ON) {
+        llMessageLinked(LINK_THIS, SCRIPT_TITLER, LM_TITLER_TEXT+ "|" + get_titler_stats(), NULL_KEY);
+    }
+}
+string get_titler_stats() {
+    integer available = gMAX_AGENTS - gAGENTS_ACTIVE;
+    string msg = "";
+    
+    if (available > 0) {
+        msg = ". AnimiX available slots: " + (string)available + " out of " + (string)gMAX_AGENTS + " .";
+    }
+    
+    if (gACTIVE_DANCE != "" && gDANCE_MODE == BTN_GROUP) {
+        msg += "\n. Now dancing: ." + gACTIVE_DANCE + ". .";
+    }
+    
+    return(msg);
+}
+show_status() {
+    integer i;
+    integer cur_menu;
+    string agent_key;
+    string active_dance;
+
+    print_chat(1, "Maximum Agents " + (string)gMAX_AGENTS);
+    print_chat(1, "Active Agents " + (string)gAGENTS_ACTIVE);
+    print_chat(1, "Dance Mode " + gDANCE_MODE);
+    
+    active_dance = gACTIVE_DANCE;
+    if (active_dance == "") {
+        active_dance = "not set";
+    }
+    print_chat(1, "Active Dance " + active_dance);
+    print_chat(1, "Free Memory " + (string)llGetFreeMemory());
+
+    for (i = 0; i < gMAX_AGENTS; ++i) {
+        agent_key = llList2String(gAGENTS, i);
+        print_chat(1, "D" + (string)(i + 1) + " " + llKey2Name(agent_key) + "(" + (string)llList2Integer(gAGENTS_MENU, i) + ")");
+    }
+}
+parse_argv(string argv) {
+    list argv = llParseString2List(argv, ["|"], []);
+    
+    gCOMMAND = llList2String(argv, 0);
+    gARG1 = "";
+    gARG2 = "";
+    
+    if (llGetListLength(argv) == 2) {
+        gARG1 = llList2String(argv, 1);
+    }
+    else if (llGetListLength(argv) == 3) {
+        gARG1 = llList2String(argv, 1);
+        gARG2 = llList2String(argv, 2);
+    }
+
+    print_chat(4, "argv[" + llList2CSV(argv) + "]");  
+    print_chat(4, "gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+
+// 0: no chat
+// 1: user information
+//
+// The following can only be available for the programmer
+// 2: NOT USED. So that gCHAT_INFO = 2 will print the same than
+//    gCHAT_INFO = 1 but with debuging code.
+// 3: print  some variables
+// 4: debugging hints
+
+print_chat(integer level, string msg) {
+    if (level <= gCHAT_INFO) {
+        if (gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        }
+        else { 
+            llOwnerSay("[Main] " + msg);            
+        }
+    }
+}
+
+default {
+    
+/****************************************/
+/*****************Touch******************/
+/****************************************/
+    touch_start(integer num_detected) {
+        gDIA_AGENTS_MENU = 0;
+        gMOUSE_DOWN_TIMER = 0.2;
+        llSetTimerEvent(0.1);
+    }
+
+    touch_end(integer num_detected) {
+        llSetTimerEvent(0.0);
+        
+        integer agent_index;
+        integer cur_menu;
+        key agent_key = llDetectedKey(0);
+
+        remove_stale_agents();
+
+        if (agent_key == OWNER && gMOUSE_DOWN_TIMER > 0.8) {
+            gMOUSE_DOWN_TIMER = 0;
+            print_chat(4, "Entering config due to gMOUSE_DOWN_TIMER");
+            llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_CONFIG, OWNER);
+        }
+        else {
+            gMOUSE_DOWN_TIMER = 0;
+            // If the owner has not added dances or jut added them, this will trigger loading
+            // the dances. The Load scrip will in turn return a linked message with the number
+            // of dances and the list of the first menu, which can be zero. The message is displayd
+            // to the OWNER regardless of the dance number so that the configuration menu is accessible
+            // If someone other than the owner clicks, the request will be silently ignored.
+            if (gINVENTORY_CHANGED || gDIA_MENU_NUM <= 0) { 
+                reload_dances(agent_key);
+            }
+            else {
+                agent_index = llListFindList(gAGENTS, [agent_key]);        
+                
+                if (agent_index < 0) { // We do not know this agent so we find an available slot
+                    agent_index = llListFindList(gAGENTS, [NULL_KEY]);
+
+                    if (agent_index < 0) {
+                        llInstantMessage(agent_key, "Sorry, all dance slots are occupied :("); 
+                    }
+                    else {
+                        new_agent(agent_key, agent_index);       
+                    }
+                }
+                // if single mode or owner we show the last used menu.
+                else if (gDANCE_MODE == BTN_SINGLE || agent_key == OWNER) {  
+                    cur_menu = llList2Integer(gAGENTS_MENU, agent_index);
+                    get_dances_menu(agent_key, cur_menu);
+                }
+                else { 
+                    // if we found the user and we are in group mode, the then user
+                    // clicked for the second time so requesting to stop. If it is
+                    // the owner, then set the flag
+                    stop_agent(llKey2Name(agent_key), agent_key, agent_index);
+                }
+            }
+        }
+    }
+
+/****************************************/
+/*************LINK_MESSAGE***************/
+/****************************************/
+
+    // This messages were originated from here and we catch the results here. The task variable
+    // will be defined by the constants above. That value should be also used by the utility script.
+    // values are always returned in the argv parameter.
+    link_message(integer sender_num, integer script_num, string argv, key agent_key) {
+        if (script_num == SCRIPT_NUM) {
+            parse_argv(argv);
+            
+            // When a menu is requested, the AnimiXLoad script selects the necessary dances
+            // and sends this sigal with the current menu and the list of dances. The first
+            // thing we do is cache the dances. Also, before requesting the dances we should
+            // check the cache to see if it already exists.
+            if (gCOMMAND == LM_DANCES_MENU) {
+                cache_dances_menu(gARG1, gARG2);
+                dia_dances(agent_key, gARG1, gARG2);
+            }
+            else if (gCOMMAND == LM_DANCES_MENU_CHANNEL) {  // from the chat channel
+                if (gINVENTORY_CHANGED || gDIA_MENU_NUM <= 0) { 
+                    reload_dances(agent_key);
+                }
+                else {
+                    integer cur_menu = (integer)gARG1;
+        
+                    if (cur_menu < 0 || cur_menu >= gDIA_MENU_NUM) {
+                        integer agent_index = llListFindList(gAGENTS, [agent_key]);
+                        cur_menu = llList2Integer(gAGENTS_MENU, agent_index);
+                           
+                        if (cur_menu < 0 && cur_menu >= gDIA_MENU_NUM) {
+                            cur_menu = 0;
+                        }
+                    }
+                    get_dances_menu(agent_key, llList2Integer(gAGENTS_MENU, cur_menu));
+                }
+            }
+            else if (gCOMMAND == LM_SET_DANCE_MODE) {
+                gDANCE_MODE = gARG1;
+                
+                if (gSTOPPED == 1) {
+                    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, OWNER);
+                }
+                else if (gDANCE_MODE == BTN_GROUP && gAGENTS_ACTIVE > 0) {
+                    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_START, NULL_KEY);
+                }
+            }
+            else if (gCOMMAND == LM_DANCES_LOAD_ANIMIX) {
+                gDIA_MENU_CACHE = [];
+                gDIA_MENU_NUM = (integer)gARG1;
+                cache_dances_menu("0", gARG2);
+                reset_agents_menu();
+                dia_dances(OWNER, "0", gARG2);
+            }
+            else if (gCOMMAND == LM_DANCES_LOAD) {
+                gDIA_MENU_NUM = (integer)gARG1;
+                gDIA_MENU_CACHE = [];
+
+                if (gDIA_MENU_NUM > 0) {
+                    integer agent_index = llListFindList(gAGENTS, [OWNER]);
+                    
+                    if (agent_index == -1) {
+                        agent_index = llListFindList(gAGENTS, [NULL_KEY]);
+                        
+                        if (agent_index == -1) {
+                            print_chat(0, "Sorry, all dance slots are occupied :(");
+                        }
+                        else {
+                            new_agent(OWNER, agent_index);
+                        }
+                    }
+                    else {
+                        cache_dances_menu("0", gARG2);
+                        dia_dances(OWNER, "0", gARG2);
+                    }
+                    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, NULL_KEY);
+                }
+                else {
+                    stop_agents();
+                    dia_dances(OWNER, "0", "");
+                    llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_STOP, NULL_KEY);   
+                }
+                
+                reset_agents_menu();
+            }
+            else if (gCOMMAND == LM_CONFIG) {
+                get_dances_menu(OWNER, 0);
+            }
+            else if (gCOMMAND == LM_AGENTS_DIA) {
+                gDIA_AGENTS_MENU = 1;
+                gDIA_AGENTS_MENU_NUM = 0;
+                gDIA_AGENTS_MENU_NAME = "";
+                gDIA_AGENTS_MENU_KEY = "";
+                dia_agents();
+            }
+            else if (gCOMMAND == LM_AGENT_NEW) { 
+                if (LM_AGENT_NEW_NO_PERMS == gARG1) {
+                    print_chat(1, "removing " + llKey2Name(agent_key) + ", permission denied");
+                    integer agent_index = llListFindList(gAGENTS, [agent_key]);
+
+                    if (agent_index >= 0) {
+                        remove_agent(agent_key, agent_index);
+                    }
+                    else {
+                        print_chat(3, "Received remove agent request for " + (string)agent_key + " but agent was not found");
+                    }
+                }
+                else if (LM_AGENT_COMMAND_STOP == gARG1) {
+                    integer agent_index = llListFindList(gAGENTS, [agent_key]);
+                    
+                    if (agent_index >= 0) {
+                        stop_agent(llKey2Name(agent_key), agent_key, agent_index);
+                    }
+                    else {
+                        print_chat(3, "Received remove agent request for " + (string)agent_key + " but agent was not found");
+                    }
+                }
+                else if (LM_AGENT_NEW_GRANTED == gARG1) {
+                    if (gDANCE_MODE == BTN_SINGLE) {
+                        get_dances_menu(agent_key, 0);
+                    }
+                    else  {
+                        if (gACTIVE_DANCE == "") {
+                            if (agent_key == OWNER) {
+                                get_dances_menu(OWNER, 0);
+                            }
+                            else {
+                                llInstantMessage(agent_key, "Waiting on " + llKey2Name(OWNER) + " to select a  dance .");
+                            }
+                        }// else active dance was already set it was sent with permission request and user is already dancing
+                    }
+                    set_titler_stats();                    
+                    llMessageLinked(LINK_THIS, SCRIPT_COMMAND, LM_COMMAND_CHANNEL_OPEN, agent_key);
+                }
+                else if (gARG1 == LM_AGENT_NEW_SENSOR) {
+                    remove_stale_agents();
+                    integer agent_index = llListFindList(gAGENTS, [NULL_KEY]);
+
+                    if (agent_index < 0) {
+                        print_chat(1, "Unable to find available slot");
+                    }
+                    else {
+                        new_agent(agent_key, agent_index);
+                    }
+                }
+                else {
+                    print_chat(3, "WARNING: unexpected response for LM_AGENT_NEW (" + LM_AGENT_NEW + ")");
+                }
+            }
+            // This command was previously design to be used with the timer. Adding the
+            // capability to users to user the next and prev command has created the need
+            // to also require to check for the dance mode. for now only the owner has
+            // the command. But, it will be extended to the other users.
+            else if (gCOMMAND == LM_DANCES_NEXT) {
+                gACTIVE_DANCE = gARG1;
+                
+                if (gDANCE_MODE == BTN_SINGLE) {
+                     integer agent_index = llListFindList(gAGENTS, [agent_key]);
+                     llMessageLinked(LINK_THIS, agent_index + 1, LM_AGENT_DANCE_CHANGE + "|" + gARG1, agent_key);
+                } else {
+                    set_titler_stats();
+                    sync_agents();
+                }
+            }
+            else if (gCOMMAND == (string)LM_INIT) { // This is called from config for a manual init.
+                init();
+                new_agent(OWNER, 0);
+            }
+            else if (gCOMMAND == LM_TITLER_STATS) {
+                if (gARG1 == LM_STATS_ON) {
+                    gTITLER_MODE = LM_STATS_ON;
+                }
+                else if (gARG1 == LM_STATS_OFF) {
+                    gTITLER_MODE = LM_STATS_OFF;
+                }
+                set_titler_stats();  
+            }
+        }
+        else if (script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if (gCHAT_INFO == 0) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if (tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        }
+        else if (script_num == LM_SET_CHAT_INFO) {
+            gCHAT_INFO = (integer)argv;
+        }
+    }
+/**********************************/
+/*************LISTEN***************/
+/**********************************/
+    listen(integer channel, string agent_name, key agent_key, string choice) {
+        integer agent_index;
+        integer cur_menu;
+
+        if (gDIA_AGENTS_MENU == 1) {            
+            if (choice == BTN_AGENTS_BACK || choice == BTN_EMPTY) {
+                dia_agents();
+            }
+            else if (choice == BTN_CONFIG_BACK) {
+                gDIA_AGENTS_MENU = 0;
+                llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_CONFIG, OWNER);
+            }
+            else if (choice == BTN_AGENTS_HELP) {
+                llGiveInventory(gDIA_AGENTS_MENU_KEY, "AnimiX Help");
+                print_chat(1, "Gave help card to " + gDIA_AGENTS_MENU_NAME);
+                dia_agents_actions();
+            }
+            else if (choice == BTN_AGENTS_CHANNEL) {
+                llOwnerSay("Clicked " + BTN_AGENTS_CHANNEL + " for " + gDIA_AGENTS_MENU_NAME);
+                dia_agents_actions();
+            }
+            else if (choice == BTN_AGENTS_STOP) {
+                stop_agent(gDIA_AGENTS_MENU_NAME, gDIA_AGENTS_MENU_KEY, llListFindList(gAGENTS, [gDIA_AGENTS_MENU_KEY]));
+                dia_agents_actions();
+            }
+            else if (choice == BTN_NEXT) {
+                ++gDIA_AGENTS_MENU_NUM;
+                dia_agents();
+            }
+            else if (choice == BTN_BACK) {
+                --gDIA_AGENTS_MENU_NUM;
+                dia_agents();
+            }
+            else {
+                gDIA_AGENTS_MENU_NAME = choice;
+                gDIA_AGENTS_MENU_KEY = get_agent_key(gDIA_AGENTS_MENU_NAME);
+                dia_agents_actions();
+            }
+        }
+        else {
+            agent_index = llListFindList(gAGENTS, [agent_key]);
+            cur_menu = llList2Integer(gAGENTS_MENU, agent_index);
+            // if we are in group mode we either change the active dance
+            // or we stop all users
+            if (choice == BTN_BACK) {
+                if (cur_menu > 0) {
+                    --cur_menu;
+                }
+                gAGENTS_MENU = llListReplaceList((gAGENTS_MENU = []) + gAGENTS_MENU, [cur_menu], agent_index, agent_index);
+                get_dances_menu(agent_key, cur_menu);
+            }
+            else if (choice == BTN_NEXT) {
+                if (cur_menu < gDIA_MENU_NUM - 1) {
+                    ++cur_menu;
+                }
+                else if (cur_menu == gDIA_MENU_NUM - 1) {
+                    cur_menu = 0;
+                }
+                gAGENTS_MENU = llListReplaceList((gAGENTS_MENU = []) + gAGENTS_MENU, [cur_menu], agent_index, agent_index);
+                get_dances_menu(agent_key, cur_menu);
+            }
+            else if (choice == BTN_CONFIG) {
+                llMessageLinked(LINK_THIS, SCRIPT_CONFIG, LM_CONFIG, OWNER);
+                dia_listener_close();
+            }
+            else if (choice == BTN_EMPTY) {
+                get_dances_menu(agent_key, cur_menu);
+            }
+            else {
+                // This is to proces group mode
+                if (gDANCE_MODE == BTN_GROUP) {
+                    // Only the owner should ever be able to access the menu under group mode
+                    if (agent_key == OWNER) {
+                        if (choice == BTN_STOP) {
+                            stop_agent(agent_name, agent_key, agent_index);
+                        }
+                        else {
+                            // We clicked a dance, if we are stopped or we want to start dancing
+                            gSTOPPED = 0;
+                            
+                          //  if (gSTOPPED == 1) {
+                          //     llMessageLinked(LINK_THIS, SCRIPT_SYNC, LM_TIMER_START, NULL_KEY); 
+                          //}                
+                            
+                            // If we clicked start we simply sync the dances
+                            if (choice == BTN_START) {   
+                                sync_agents();    
+                            } else {
+                                // If we did not click the start button we clicked a dance so
+                                // so we are trying to override the current dance
+                                gACTIVE_DANCE = choice;
+                                
+                                llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_NEXT_OVERRIDE + "|" + (string)cur_menu + "|" + gACTIVE_DANCE, NULL_KEY); 
+                            }
+                            set_titler_stats();  
+                        }
+                    }
+                }
+                else {
+                    // This is single mode and user is requesting to stop the dancing.
+                    if (choice == BTN_STOP) {
+                        stop_agent(agent_name, agent_key, agent_index);
+                    }
+                    else {
+                        // This is necessary to present the menu to the OWNER after loading dances
+                        // without neededing to display a permission request simultaneously 
+                        // Otherwise, we would require the owner to click twice when detached.
+                        // If there are no dances, no user can be registered. 
+                        // If the Contents of dancer were modified, the program was initialized.
+                        if (agent_index == -1 && agent_key == OWNER) {
+                            new_agent(OWNER, 0);
+                        }   
+                        else {
+                            gSTOPPED = 0;
+
+                            if (choice == BTN_START && agent_key == OWNER) {
+                                llMessageLinked(LINK_THIS, SCRIPT_LOAD, LM_DANCES_NEXT, NULL_KEY);
+                            } else {
+                                llMessageLinked(LINK_THIS, agent_index + 1, LM_AGENT_DANCE_CHANGE + "|" + choice, agent_key);
+                        
+                                // Keep track of the last dance chosen by the owner so that when we start group 
+                                // mode we beging from his last selected dance
+                                if (agent_key == OWNER) {
+                                    gACTIVE_DANCE = choice;
+                                    set_titler_stats();
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                dia_listener_close();
+            }
+        }
+    }
+    timer() {
+        if (gMOUSE_DOWN_TIMER > 0) {
+            print_chat(3, "gMOUSE_DOWN_TIMER: " + (string)gMOUSE_DOWN_TIMER);
+            gMOUSE_DOWN_TIMER += 0.2;
+        }
+        else {
+            dia_listener_close();
+        }
+    }
+
+    changed(integer change) { 
+        if (change & CHANGED_OWNER) {
+            llResetScript();
+        }
+
+        if (change & CHANGED_INVENTORY) {
+            gINVENTORY_CHANGED = 1;
+        }
+    }
+    
+    attach(key attached) {
+        if (attached != NULL_KEY) { //Attached
+            llSetPrimitiveParams([
+                PRIM_COLOR, ALL_SIDES, <1, 0, 0>, 0
+            ]);
+            llSetLinkPrimitiveParams(2, [
+                PRIM_COLOR, ALL_SIDES, <1, 1, 1>, 0
+            ]);
+            llSetLinkPrimitiveParams(3, [PRIM_COLOR, ALL_SIDES, <0, 0, 0>, 0]);
+                 
+            llTargetOmega(<0.0, 0.0, 0.0>, 0.0, 0.0);
+        }
+        else {
+            llSetPrimitiveParams([
+                PRIM_GLOW, ALL_SIDES, 0,  
+                PRIM_FULLBRIGHT, ALL_SIDES, TRUE,
+                PRIM_COLOR, ALL_SIDES, <1, 0, 0>, 1
+            ]);
+            llSetLinkPrimitiveParams(2, [
+                PRIM_FULLBRIGHT, ALL_SIDES, TRUE,
+                PRIM_COLOR, ALL_SIDES, <0, 0, 0>, 1
+            ]);
+
+            llTargetOmega(<0.0, 0.0, -1.0>, -0.1, 0.5);
+            llSetLinkPrimitiveParams(3, [PRIM_COLOR, ALL_SIDES,  <0, 0, 0>, 1]);
+        }
+    }
+
+    on_rez(integer start_param) {
+        gSTOPPED = 1;
+        
+        if (OWNER == NULL_KEY) {
+            init();
+        }
+        init_agents();
+    }
+
+    state_entry() {
+        if (OWNER == NULL_KEY) {
+            init();
+        }
+    }
+
+    state_exit() {
+        dia_listener_close();
+    }
+}
+

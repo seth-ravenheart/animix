@@ -1,0 +1,33 @@
+FEATURES
+1. Invite is super easy . The command "/69 Invite G" will search for the closest person whose name start with G and send an invite printing the full name to the owner. In the even that not user is found, the owner is presented with a menu of available avatars to invite.
+
+2. Real time checking for note cards errors. A notcared will not load if dances are mispelled, missing, or the names are longer than 24 characters.
+
+3.  Easy access to configuration menu, simply hold the mouse for longer than 3 seconds to bypass the dances menu.
+
+4. Command line driven. Most functions can be done using commands instead of the laggy dialogs.
+
+5. But if you love dialogs those have been enhanced as well. In the visual aspect, dialogs are in alphabetical order and a page number is display for each dialog. In terms of performance, the dialogs a fully cached on the first time they are accessed; therefore, each additional click from any user will require further access of the inventory making the request a lot lest laggy.
+
+ANIMIX
+=====
+The term animix is a referece to a collection of animations grouped into a notcard. When a notcard is drop into the inventory of the Dance Machine, a button is generated with the same name of the notcard. Clicking this button will cause Animix to load only the dances listed in the notecard.
+
+TITLER
+====
+The titler feature has three modes: custom, stats and naughty. The custom mode is a string of text over the head. This string can be modified by clicking the button in the Config->TItler->Set..  button. Clicking this button will issue a chat message indicating the channel number to use.
+
+The stats mode displays the number of users 
+
+Commands
+-------------
+/69 titler titler 
+/69 titler off - turns off the titler
+/69 titler custom - turns on the titler in custom mode. 
+/69 titler custom set - to modify the text of the titler in custom  mode. This command but does no toggle the titler on or off in favor of discretion.
+/69 titler custom change - same as above
+/69 titler change - same as above
+/69 titler set - same as above
+/69 titler naughty [nn] - sets the interval to wait between titler set requests. Valid values are between 10 and 99 inclusive.
+/69 titler color [prev|rev|reverse] - sets the titler color to the next available value. If prev, rev or reverse is specified, the previous color is selected. 
+/69 titler border - toggles the border of the titler on or off.

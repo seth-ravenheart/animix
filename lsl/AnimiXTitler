@@ -1,0 +1,269 @@
+integer SCRIPT_NUM = 500;
+integer LM_INIT = 101;
+integer LM_STATUS_SHOW = 102;
+integer LM_SET_CHAT_INFO = 103;
+
+string gCOMMAND;
+string gARG1;
+string gARG2;
+integer gCHAT_INFO = 0;
+
+string LM_NAUGHTY_ON = "sn_on";
+string LM_NAUGHTY_OFF = "sn_off";
+string LM_NAUGHTY_TIMER_SET = "sn_timer_set";
+
+string LM_TITLER_SET  = "sn_titler_set";
+string LM_TITLER_TEXT = "sn_titler_text";
+string LM_TITLER_COLOR = "sn_titler_color";
+string LM_TITLER_BORDER = "sn_titler_border";
+
+integer gENABLED = 0;
+
+integer gWAITING = 1;
+integer gCHANNEL;
+integer gTIMER = 600;
+integer gTIMER_WAITING = 120;
+vector gTITLER_COLOR = <1.0,0.0,0.0>;
+string gTITLER_TEXT = "";
+integer gTITLER_BORDER = 0;
+string gOWNER;
+
+integer gLISTEN_ID;
+integer MAX_TITLE_LEN = 32;
+
+init_titler(string chat_info) {
+    gOWNER = llGetOwner();
+    gCHAT_INFO = (integer)chat_info;
+    gTITLER_TEXT = "";
+    gTIMER = 600;
+    llSetText("",<0.0,0.0,0.0>,0.0);
+    gTITLER_COLOR = <1.0,0.0,0.0>;
+    show_status();
+}
+string get_name( ) {
+    if(llGetAttached() != 0) {
+        string first_name = get_first_name(gOWNER);
+        
+        if(llGetSubString(first_name, -1, -1) == "s") {
+            return(first_name + "'");
+        }
+        else {
+            return(first_name + "'s");
+        }
+    }
+    else {
+        return("/me") + "'s";
+    }
+}
+print_alert() {
+    llSay(0, get_name() + " naughty titler alert! The title can be set on channel /" + (string)gCHANNEL);
+}
+print_remains() {
+    llSay(0, get_name() + " naughty title was not modified :-(");
+}
+print_title_assigned(key agent_key) {
+    if(llGetAttached() != 0) {
+        llSay(0, get_first_name(gOWNER) + " has a new naughty title, courtesy of " + get_first_name(agent_key) + " :-)");
+    }
+    else {
+        llSay(0, "AnimiX has a new naughty title, courtesy of " + get_first_name(agent_key) + "!" );
+    }
+}
+print_owner_alert() {
+    llSay(0, get_first_name(gOWNER) + "!!! you cannot change your own title!");
+}
+string get_first_name(string name) {
+    return(llList2String(llParseString2List(llKey2Name(name), [" "], []), 0));
+}
+title_await() {
+    gWAITING = 1;
+    gCHANNEL = get_channel();
+    gLISTEN_ID = llListen(gCHANNEL, "", "", "");
+    
+    title_set();
+    print_alert();
+    
+    llSetTimerEvent(gTIMER_WAITING);
+}
+title_remains() {
+    gWAITING = 0;
+    llListenRemove(gLISTEN_ID);
+    
+    print_remains();
+    
+    llSetTimerEvent(gTIMER);  
+}
+title_assigned(key agent_key, string title) {
+    gWAITING = 0;
+    llListenRemove(gLISTEN_ID);
+    
+    gTITLER_TEXT = title;
+    
+    title_set();
+    
+    print_title_assigned(agent_key);
+    
+    llSetTimerEvent(gTIMER);
+}
+title_set() {
+    if(gTITLER_TEXT != "") {
+        if(gTITLER_BORDER == 1 && llStringLength(gTITLER_TEXT) <= MAX_TITLE_LEN) {
+            llSetText(draw_title(gTITLER_TEXT), gTITLER_COLOR, 1.0);
+        }
+        else {
+            llSetText(gTITLER_TEXT, gTITLER_COLOR, 1.0);
+        }
+    }
+} 
+string draw_title(string title) {
+    integer i;
+    string top;
+    string middle;
+    string bottom;
+    
+    top = "+";
+    for(i = 0; i < llStringLength(title); ++i) {
+        top += "-";
+    }
+    top += "+\n";
+    
+    middle  = "?  ";
+    middle += title;
+    middle += "  ?\n";
+    
+    bottom = "+";
+    for(i = 0; i < llStringLength(title); ++i) {
+        bottom += "-";
+    }    
+    bottom += "+";
+    
+    return(top + middle + bottom);
+}
+integer get_channel() {
+    return((integer)llFrand(900) + 100);
+}
+show_status( ) {
+    string enabled_toggle = "not running";
+    
+    if( gENABLED == 1) {
+        enabled_toggle = "running";
+    }
+    print_chat(1,"Naughty Titler is " + enabled_toggle );
+}
+parse_argv(string argv) {
+    list argv = llParseString2List(argv, ["|"], []);
+    
+    gCOMMAND = llList2String(argv,0);
+    gARG1 = "";
+    gARG2 = "";
+    
+    if(llGetListLength(argv) == 2) {
+        gARG1 = llList2String(argv, 1);
+    }
+    else if(llGetListLength(argv) == 3) {
+        gARG1 = llList2String(argv, 1);
+        gARG2 = llList2String(argv, 2);
+    }
+    
+    print_chat(4,"argv[" + llList2CSV(argv) + "]");  
+    print_chat(3,"gCOMMAND[" + gCOMMAND + "] gARG1[" + gARG1 + "] gARG2[" + gARG2 + "]");
+}
+print_chat(integer level, string msg) {
+    if(level <= gCHAT_INFO) {
+        if(gCHAT_INFO == 1) {
+            llOwnerSay(msg);
+        }
+        else { 
+            llOwnerSay("[Titler] " + msg);            
+        }
+    }
+}
+default {
+    link_message(integer sender_num, integer script_num, string argv, key ignored) {
+        if(script_num == SCRIPT_NUM) {
+            parse_argv(argv);
+           
+            if(gCOMMAND == LM_NAUGHTY_OFF) {
+                print_chat(1, "Naughty titler is now disabled");
+                llSetText("",<0.0,0.0,0.0>,0.0);
+                gENABLED = 0;
+                gTITLER_TEXT = "";
+                llSetTimerEvent(0.0);
+            }
+            else if(gCOMMAND == LM_NAUGHTY_ON) {
+                print_chat(1, "Naughty titler is now enabled");
+                gENABLED = 1;
+                title_await();
+            }
+            else if(gCOMMAND == LM_NAUGHTY_TIMER_SET) {
+                gTIMER = (integer)gARG1 * 60;
+                print_chat(1, "Setting naughty titler to " + gARG1 + " minutes");
+                llSetTimerEvent(gTIMER);
+            }
+            else if(gCOMMAND == LM_TITLER_SET) {
+                gTITLER_TEXT = gARG1;
+                title_set();
+                llSetTimerEvent(0.0);
+            }
+            else if(gCOMMAND == LM_TITLER_TEXT) {
+                gTITLER_TEXT = gARG1;
+                title_set();
+                llSetTimerEvent(0.0);
+            }
+            else if(gCOMMAND == LM_TITLER_COLOR) {
+                vector temp = (vector)gARG1;
+                gTITLER_COLOR = temp;
+                title_set();
+                llSetTimerEvent(0.0);
+            }
+            else if(gCOMMAND == LM_TITLER_BORDER) {
+                gTITLER_BORDER = (integer)gARG1;
+                title_set();
+            }
+        }
+        else if(script_num == LM_INIT) {
+            init_titler(argv);
+        }
+        else if(script_num == LM_STATUS_SHOW) {
+            integer tempCHAT_INFO = gCHAT_INFO;
+            
+            if(gCHAT_INFO == 0) {
+                gCHAT_INFO = 1;
+            }
+            
+            show_status();
+            
+            if(tempCHAT_INFO == 0) {
+                gCHAT_INFO = 0;
+            }
+        }
+        else if(script_num == LM_SET_CHAT_INFO ) {
+            gCHAT_INFO = (integer)argv;
+        }        
+    }
+    
+    listen(integer channel, string name, key agent_key, string title) {
+        if (agent_key == gOWNER && llGetAttached() > 0) {
+            print_owner_alert();
+        } 
+        else {
+            if(llStringLength(title) > MAX_TITLE_LEN) {
+                llInstantMessage(agent_key, "Sorry, title cannot be longer than " + (string)MAX_TITLE_LEN + " characters, you entered " + (string)llStringLength(title) + ".");
+            }
+            else {
+                title_assigned(agent_key, title);
+                llListenRemove(gLISTEN_ID);
+            }
+        }
+    }
+
+    timer() {
+        if(gWAITING == 1) {
+            title_remains();
+            llListenRemove(gLISTEN_ID);
+        }
+        else {
+            title_await();
+        }
+    }
+}
